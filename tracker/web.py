@@ -456,18 +456,6 @@ def home() -> str:  # pragma: no cover - landing page
             "url": url_for("songs"),
             "cta": "Open songs",
         },
-        {
-            "title": "Registrations List",
-            "description": "Admin view: review submitted Carols registrations, schedule visit dates, and export full CSV backups.",
-            "url": url_for("registrations_list"),
-            "cta": "View registrations",
-        },
-        {
-            "title": "Add Address",
-            "description": "Directly add a family address onto a specific Carols date with prayer request and visit order.",
-            "url": url_for("add"),
-            "cta": "Add address",
-        },
     ]
     return render_template("home.html", tiles=tiles)
 
