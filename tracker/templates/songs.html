@@ -1,0 +1,650 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Carol Song Book</title>
+    <link rel="icon" type="image/png" href="{{ url_for('favicon') }}" />
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Great+Vibes&family=Quicksand:wght@400;500;700&display=swap');
+      :root { font-family: 'Quicksand', system-ui, -apple-system, sans-serif; color: #e2e8f0; }
+      html, body { overflow-x: hidden; }
+      body { margin: 0; background: #0a1f1a; background-image: radial-gradient(circle at 10% 5%, rgba(255,255,255,0.08) 2px, transparent 3px), radial-gradient(circle at 80% 20%, rgba(255,255,255,0.08) 2px, transparent 3px), radial-gradient(circle at 30% 70%, rgba(255,255,255,0.1) 2px, transparent 3px), linear-gradient(180deg, #0d2f25 0%, #061a16 60%, #061218 100%); background-size: auto, auto, auto, cover; }
+      #snow-canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 2; pointer-events: none; }
+      main { position: relative; z-index: 3; }
+      header { text-align:center; padding: 1.6rem 1rem 0.8rem; position: relative; }
+  .hero-link { position:absolute; top: 0.8rem; right:1rem; color:#f8fafc; font-weight:700; text-decoration:none; letter-spacing:0.2em; text-transform:uppercase; font-size:0.75rem; }
+      h1 { margin:0; font-family:'Great Vibes', cursive; font-size: clamp(2.4rem, 6vw, 3.6rem); line-height:1.1; background: linear-gradient(120deg, #facc15, #ef4444 50%, #22c55e); -webkit-background-clip:text; background-clip:text; color:transparent; text-shadow: 0 2px 10px rgba(250, 204, 21, 0.25); }
+      .shell { max-width: 980px; margin: 0 auto; padding: 0 1rem 2rem; }
+      .intro { text-align:center; color:#cbd5e1; margin-bottom:0.75rem; }
+      .songbook { background: rgba(255,255,255,0.96); border: 2px solid rgba(250, 204, 21, 0.25); border-radius: 1.2rem; padding: 1rem; box-shadow: 0 26px 64px rgba(8,18,16,0.35); color: #0b0b1a; }
+      details { border: 1px solid rgba(15,23,42,0.16); border-radius: 0.8rem; background: #fff; margin: 0.5rem 0; padding: 0.6rem 0.8rem; }
+      summary { cursor: pointer; font-weight: 800; color: #0b0b1a; list-style: none; }
+      summary::marker { display: none; }
+      summary .num { color: #b91c1c; font-weight: 900; margin-right: 0.5rem; }
+      summary .title { font-family: 'Playfair Display', serif; }
+      .lyrics { margin-top: 0.6rem; white-space: pre-wrap; line-height: 1.6; }
+      .controls { display:flex; gap:0.5rem; align-items:center; justify-content:flex-end; }
+      .controls button { border:none; border-radius:999px; padding:0.4rem 0.8rem; font-weight:800; cursor:pointer; color:#fff; background: linear-gradient(135deg, #ef4444, #22c55e); }
+    </style>
+  </head>
+  <body>
+    <canvas id="snow-canvas" aria-hidden="true"></canvas>
+    <header>
+  <a href="{{ url_for('tracker') }}" class="hero-link">Tracker</a>
+      <h1>Carol Song Book</h1>
+    </header>
+    <main>
+      <section class="shell">
+        <p class="intro">Tap a title to expand and sing along. 33 songs included.</p>
+        <div class="songbook" id="songbook">
+          <details>
+            <summary><span class="num">1.</span><span class="title">In David’s place (Indian Languages)</span></summary>
+            <div class="lyrics">(Telugu Song)
+தாவீது ஊரிலோ/ Dhaveedhu  oo-rilo
+பசுல பாகலோ/ Pasula paa-kalo
+இயேசு ஜென்மின்ஞ்சேனு/ Yesu Janminchenu
+ரண்டி ஆராதிம்பா/ Randi Araadhimpa
+
+(Malayalam Song )
+தாவீது நாட்டிலே/ Thaaveethu Naattilae
+மாட்டுத் தொழுத்திலே/ Maattuth Thozhuththilae
+இயேசு ஜெனிச்சு/ Iyaesu Jenissu
+வரு ஆராதிக்கான்/ Varu Aaraathikkaan
+
+(Tamil Song)
+தாவீதின்  ஊரிலே/ Daveethin    Oorile
+மாட்டுக்  குடிலிலே/ Maattu2)   Kudililae
+மீட்பர்  பிறந்துள்ளார்/ Meetpar   Piranthullaar
+வாரும்  ஆராதிப்போம்/ Vaarum    Aarathippom
+ 
+(Kannada  Song )
+Daveedha  Noorilanee
+Dhanadha Kottigeyalee
+Rakshaka Huttidhani
+Banni Aradhesona</div>
+          </details>
+          <details>
+            <summary><span class="num">2.</span><span class="title">Thoorpu Diku Chukka Butte (Telugu)</span></summary>
+            <div class="lyrics">Thoorpu Diku Chukka Butte Merammaa – O Mariyamma (2)
+Chukkanu Joochi Memu Vachchinaamu Mokki Povutaku (2)
+
+Bethlehemu Puramu Loni Baaludamma – Goppa Baaludamma (2)
+Mana Paapamula Baapa Puttenamma Mahimavanthudamma (2)
+
+Pashuvula Paakaloni Baaludamma – Paaparahithudamma (2)
+Paapambu Baapanu Puttenamma Sathyavanthudamma (2)
+
+Bangaaram Saambraani Bolam Thechchinaamu – Baala Yesu Noddaku (2)
+Bangaaru Paadamula Mrokkedamu Bahuga Paadedamu (2)</div>
+          </details>
+          <details>
+            <summary><span class="num">3.</span><span class="title">Raajulaku Raaju (Telugu)</span></summary>
+            <div class="lyrics">Raajulaku Raaju Puttenannayya (2)
+Raare Chooda Manamelludaamannayya (2)    
+||Raajulaku||
+
+Yudaayane Deshamandannayya (2)
+Yudulaku Goppa Raaju Puttenannayya (2)      
+||Raajulaku||
+
+Thaaran Joochi Thoorpu Gnaanulannayya (2)
+Tharalinaare Vaaru Bethlehemannayya (2)      
+||Raajulaku||
+
+Bangaaramu Saambraani Bolamannayya (2)
+Baagugaanu Sree Yesu Keeyarannayya (2)    
+||Raajulaku||
+
+Aadudaamu Paadudaamannayya (2)
+Vedukatho Manamelludaamannayya (2)          
+||Raajulaku||</div>
+          </details>
+          <details>
+            <summary><span class="num">4.</span><span class="title">Yeshu Paida Hua (Hindi)</span></summary>
+            <div class="lyrics">JHoomo Nacho Khushi Se Aaj
+Yeshu Paida Hua (4)
+
+Bethelahem Ki Choti Nagariya
+Chamka Sitara Hai
+Charni Me Aaya Yeshu Mashiha
+Duto Ne Gaya Ye (2)
+Prabhu Sabkaha Aaya Yeshu Sabka Aaya (2)
+
+Jhumo Nacho…..
+
+Raaja Sab Ghab raya gaya
+ Yeshu Ke Aane Se
+Bhar Bhar Dhundhwaya Yeshu Ko
+Paya Pata Na Re. (2)
+Yeshu Raja hua Yeshu Raja Hua (2)
+
+Jhumo Nacho…..
+
+Aanand Khusiya Aayi Jagat Me
+Yeshu Ke Aane Se
+Jyoti Mukti Aayi Jagat Me
+Yeshu Ke Aane Se (2)
+Mukti Daata Aaya (3)
+
+Jhumo Nacho…..</div>
+          </details>
+          <details>
+            <summary><span class="num">5.</span><span class="title">Hark! The herald angels sing</span></summary>
+            <div class="lyrics">Hark! The herald angels sing, “Glory to the newborn King!
+Peace on earth and mercy mild, God and sinners reconciled.”
+Joyful, all ye nations rise, Join the triumph of the skies,
+With th’angelic host proclaim: “Christ is born in Bethlehem.”
+Hark! The herald angels sing, “Glory to the newborn King!”
+
+Christ by highest heav'n adored, Christ the everlasting Lord!
+Late in time behold Him come, Offspring of a Virgin's womb.
+Veiled in flesh the Godhead see, Hail the incarnate Deity,
+Pleased as man with man to dwell, Jesus, our Emmanuel.
+Hark! The herald angels sing, “Glory to the newborn King!”
+
+Hail the heav'n-born Prince of Peace! Hail the Son of Righteousness!
+Light and life to all He brings, Ris'n with healing in His wings.
+Mild He lays His glory by, Born that man no more may die,
+Born to raise the sons of earth, Born to give them second birth.
+Hark! The herald angels sing, “Glory to the newborn King!”</div>
+          </details>
+          <details>
+            <summary><span class="num">6.</span><span class="title">Dootha paata paadudi (Telugu)</span></summary>
+            <div class="lyrics">1. Dootha paata paadudi Rakshakun stuthinchudi
+Aaa prabhundu puttenu Bethlehemu nandunan Bhoojanambu kellanu
+
+Soukhyasambhra maayenu Aaakasambunandunaa Mroghu paata chaatudi
+Dootha paata paadudi Rakshakun stuthinchudi
+
+2. Oordhvalokamanduna Golvangaanu shuddhulu Aanthya kaalamanduna
+Kanya garbhamanduna Buttinatti rakshakaa Oh immanuel prabho
+
+Oh narava taarudaa Ninnu nenna sakyamaa Doota paata padudi Rakshakun stuthinchudi
+
+3. Raave neethi sooryudaa Raave deva puthrudaa Needhu raaka vallanu
+Loka soukhya maayenu
+
+Bhonivaasu landarau Mruthyu bheethi gelturu Ninnu nammu vaariki Aaatma shuddhi kalgunu
+Doota paata padudi Rakshakun stuthinchudi</div>
+          </details>
+          <details>
+            <summary><span class="num">7.</span><span class="title">Kelu Dootharganava (Kannada)</span></summary>
+            <div class="lyrics">1. Kelu Dootharganava Ganaraja Huttidha - Swargadhalli Maahime
+Bhumiyalli Karune Yella Jana Harshesee Dootarkuuda Hadali
+Betheleheminolage Paranjyothi Thoridea -Kelu Dootharganava Ganaraja Huttidha
+
+2. Ega Huttidhathanuu Paraloka Dharasu Melininda Eleidhu Naranage Bandhanu
+
+Preetheeyindha Thannanu Dinamadikondanu Devara Kumaranu Ellivaasesedhanu
+-Kelu Dootharganava Ganaraja Huttidha
+
+3. Ohh Mahathvadha-R-Asa Sarwaloka Rakshaka Samadhana Guruvea
+Neethi Soorya Christhanea Mana Shanti Huttisee Mokshananda Thandhidhi
+Namaskara Yesuvea Nithya Mana Neenage -Kelu Dootharganava Ganaraja Huttidha</div>
+          </details>
+          <details>
+            <summary><span class="num">8.</span><span class="title">O come, all ye faithful, Joyful and triumphant</span></summary>
+            <div class="lyrics">O come, all ye faithful, Joyful and triumphant,
+O come ye, O come ye to Bethlehem; Come and behold him, Born the King of angels;
+
+(CHORUS) O come, let us adore him, O come, let us adore him,
+O Come, let us adore him, Christ the Lord.
+
+Sing, choirs of angels, Sing in exultation, Sing, all ye bright hosts of heav’n above;
+Glory to God All glory in the highest; (CHORUS)
+
+Yea, Lord, we greet thee, Born this happy morning; Jesus, to thee be glory given;
+Word of the Father, Now in flesh appearing. (CHORUS)</div>
+          </details>
+          <details>
+            <summary><span class="num">9.</span><span class="title">Peththalaiyil Piranthavarai (Tamil)</span></summary>
+            <div class="lyrics">Peththalaiyil Piranthavaraip Poerriththuthi, Manamae - Innum
+
+1. Saruvaththaiyum Pataiththaanta Saruvavallavar - Inku
+Thaazhmaiyulla Thaaymatiyil Thalaisaaykkalaanaar. - Peth
+
+2. Sinkaasanam Veerrirukkum Thaevamainthanaar - Inku
+Pankamurra Pasuththottilil Patuththirukkiraar. - Peth
+
+3. Munnam Avar Sonnapati Mutippatharkaaka - Inku
+Moetsam Vittuth Thaazhssiyulla Munnanaiyilae. - Peth
+
+4. Aavikalin Poerruthalaal Aananthankontoer - Inku
+Aakkaluta Saththaththukkal Azhuthu Piranthaar. - Peth
+
+5. Inthataivaay Anpuvaiththa Emperumaanai – Naam Ennamutan Poeyththuthikka Aekituvoemae. - Peth</div>
+          </details>
+          <details>
+            <summary><span class="num">10.</span><span class="title">Athigalayil Palanai Thedi (Tamil)</span></summary>
+            <div class="lyrics">Athikaalaiyil Paalanaith Thaeti Selvoem Naam Yaavarum Kuuti
+Antha Maatataiyum Kutil Naati, Theyva Paalanaip Paninthita Vaareer…
+Athikaalaiyil Paalanaith Thaeti… Vaareer… Vaareer… Vaareer… Naam Selvoem
+
+1. Annai Mariyin Matimaelae Mannan Makavaakavae Thoenra
+Vin Thuutharkal Paatalkal Paata, Viraivaaka Naam Selvoem Kaetka… - Athikaalaiyil
+
+2. Manthai Aayarkal Yaavarum Ankae Antha Munnanai
+Munnilai Ninrae Un Sinthai Kulirnthita Poerru Nal Kaatsiyai Kantita Naamae… - Athikaalaiyil</div>
+          </details>
+          <details>
+            <summary><span class="num">11.</span><span class="title">Silent night, holy night</span></summary>
+            <div class="lyrics">Silent night, holy night! All is calm, all is bright.
+Round yon Virgin, Mother and Child. Holy infant so tender and mild,
+Sleep in heavenly peace, Sleep in heavenly peace
+
+Silent night, holy night! Shepherds quake at the sight.
+Glories stream from heaven afar Heavenly hosts sing Alleluia,
+Christ the Savior is born! Christ the Savior is born
+
+Silent night, holy night! Son of God love's pure light.
+Radiant beams from Thy holy face With dawn of redeeming grace,
+Jesus Lord, at Thy birth Jesus Lord, at Thy birth</div>
+          </details>
+          <details>
+            <summary><span class="num">12.</span><span class="title">Joy to the world, the Lord has come</span></summary>
+            <div class="lyrics">Joy to the world, the Lord has come! Let earth receive her King;
+Let every heart prepare Him room,
+
+And heaven and nature sing, And heaven and nature sing,
+And heaven, and heaven, and nature sing.
+
+Joy to the world, the Savior reigns! Let men their songs employ;
+While fields and floods, rocks, hills and plains
+
+Repeat the sounding joy, Repeat the sounding joy,
+Repeat, repeat, the sounding joy.
+
+He rules the world with truth and grace, And makes the nations prove
+The glories of His righteousness,
+
+And wonders of His love, And wonders of His love,
+And wonders, wonders, of His love.</div>
+          </details>
+          <details>
+            <summary><span class="num">13.</span><span class="title">Feliz Navidad</span></summary>
+            <div class="lyrics">Feliz Navidad Feliz Navidad Feliz Navidad Prospero Ano y Felicidad.
+Feliz Navidad Feliz Navidad Feliz Navidad Prospero Ano y Felicidad.
+
+I wanna wish you a Merry Christmas I wanna wish you a Merry Christmas
+I wanna wish you a Merry Christmas From the bottom of my heart.
+
+Feliz Navidad Feliz Navidad Feliz Navidad Prospero Ano y Felicidad.
+
+Feliz Navidad Feliz Navidad Feliz Navidad Prospero Ano y Felicidad.
+
+I wanna wish you a Merry Christmas I wanna wish you a Merry Christmas
+I wanna wish you a Merry Christmas From the bottom of my heart</div>
+          </details>
+          <details>
+            <summary><span class="num">14.</span><span class="title">Leh Lina Christ Avtara (Hindi)</span></summary>
+            <div class="lyrics">Leh Lina Christ Avtara Leh Lina Christ Avtara
+Manao Khushi, Khushi Manao.
+
+1. Yahuda Desh Ke Betlehem Mai Chamka Chamacham Tara
+Manao Khushi Khushi Manao...
+
+Leh Lina Christ Avtara Leh Lina Christ Avtara
+Manao Khushi, Khushi Manao.
+
+2. Janam Liya Hai Gaushale Mai, Mariyem Ki Ankho Ka Tara
+Manao Khushi Khushi Manao...
+
+Leh Lina Christ Avtara Leh Lina Christ Avtara
+Manao Khushi, Khushi Manao.
+
+3. Chale Gadariye Betlehem Ko, Dekhen Wo Taranhara
+Manao Khushi Khushi Manao...
+
+Leh Lina Christ Avtara Leh Lina Christ Avtara
+Manao Khushi, Khushi Manao.
+
+4. Khushi Manao Gaao Bajaoo, Tabla Mridang Chinkara
+Manao Khushi Khushi Manao...
+
+Leh Lina Christ Avtara Leh Lina Christ Avtara
+Manao Khushi, Khushi Manao.</div>
+          </details>
+          <details>
+            <summary><span class="num">15.</span><span class="title">Jai Jai Prabhu Yeshu Ki (Hindi)</span></summary>
+            <div class="lyrics">Jai Jai Prabhu yeshu ki – 2
+Hum ko bachane Aaya jagat mai Uski stuti karo, Hallelujah aamen
+
+1. Khun ki dhara behti suli se jismai dhule sab paap,
+Dholo aab tum aapne hriday ko usmai rahe na daag – 2
+
+2. Grahan karo tum aaj Yeshu ko prem ki behti dhaar,
+Usko bana lo khewan hara naaw lagalo paar – 2
+
+3. Wapas aata mera prabhu ji le jayega saath,
+Aasha meri aab to yahi hai chalo tum mere saath – 2</div>
+          </details>
+          <details>
+            <summary><span class="num">16.</span><span class="title">Ayiram Sthothiramae (Tamil)</span></summary>
+            <div class="lyrics">Ayiram Sthothiramae Yesuvai Pathiranae Pallathakkilae
+Avar Leeli Saronin Oer Roja
+
+Bethalai Naharinilae Mattu Thozhuvathilae Ennaiyae Meetka
+Palanai Pirantha Yesuvai Poetriduvoam
+
+Valiba Naatkalilae Ennai Padaithavarai Ninaithaen
+Aetriya Theepathal Idhayamae Niranithathu Yesuvin Anibinalae</div>
+          </details>
+          <details>
+            <summary><span class="num">17.</span><span class="title">Piranthaar, Piranthaar (Tamil)</span></summary>
+            <div class="lyrics">Piranthaar, Piranthaar Vaanavar Puvi Maanitar Pukazh Paatita Piranthaar
+
+1. Maattuth Thozhuvam Therinthetuththaar Maa Thaeva Thaevanae
+Maenmai Veruththaar Thaazhmai Thariththaar Maa Thiyaakiyaay Valarnthaar
+
+2. Paava Ulaka Maanitar Mael Paasam Atainthavarae
+Manakkaarirulai Emmil Neekkitu Mey Maajoethiyaay Thikazhnthaar
+
+3. Porumai Thaazhmai Anpurukkam Perunthanmai Ullavarae
+Maranam Varaiyum Thannai Thaazhththinathaal Maelaana Naamam Perraar
+
+4. Kanthaith Thuniyoe Karththarukku Katum Aezhmaik Koelamathoe
+Vilaiyaerapperra Utai Alankarippum Veen Aasaiyum Namakkaen</div>
+          </details>
+          <details>
+            <summary><span class="num">18.</span><span class="title">Puunilaavulla Raavil Thaarankal (Malayalam)</span></summary>
+            <div class="lyrics">Puunilaavulla Raavil Thaarankal Minnitum Poel
+Sorkeeya Maalaakanmaar Thaaraattu Paateetunnu
+
+Thaaveethin Nakariyil Pethlakaem Pulkuuttil Oru Sisu Jaathanaayi
+
+Aananthaththoet Naam Paatip Pukazhnthitaam | Paarithil Jaathanaayi |2
+
+Ha- - Ha - -enthaanantham Ha- - Ha- - Enthaanantham Ha- - Ha- - Enthaanantham
+
+Paarithil Jaathanaayi
+
+2. Magngna’l Kulissa Raathri Thuuthanmaar Paateetunthu
+Aththunnathaththil Makaththuvam Puumiyil Samathaanam (thaaveethin - - -
+
+3. Paalanaam Aaya Raavil Paathiraa Naeramathil Paatitum Thuu Thakanam
+Unnathaththil Makthvam (thaaveethin - - -</div>
+          </details>
+          <details>
+            <summary><span class="num">19.</span><span class="title">Thaaveethin Koeththiranae (Tamil)</span></summary>
+            <div class="lyrics">Thaaveethin Koeththiranae Thaakaththai Theerppavanae
+Maa Anpu Iyesuvae Maa Thaeva Paalanae Maa Anpu Enkal Iraajanae
+
+Vaan Velli Thoenrum Antha Vaelaiyil | Vaan Mannan Iyaesu Inru Thoenrinaar | 2
+Vaan Muuppar Virainthu Anku Aekinaar | Vallavan Patham Paninthu Vaazhththinaar | 2
+
+Neethi Thaevan Iyaesu Iraajan Kaankiraar | Neethi Nalki Niyaayam Theerkka Poekiraar | 2
+Neethi Ninru Vaazhum Anpu Maantharai | Neethi Kireetam Suutti Anru Vaazhththuvaar | 2</div>
+          </details>
+          <details>
+            <summary><span class="num">20.</span><span class="title">Yesu Manidarai Pirandhar (Tamil)</span></summary>
+            <div class="lyrics">Yesu Manidarai Pirandhar Indha lohathai meettidavae
+Iravaian Oliyai Irulil Uthithaar Indha Narcheithi Satriduvoam
+
+1. Meipparhal Iravinilae – Thangal Madhaiyai Kathirukka
+Thoothargal Vanathilae thoendri Thevani Thuthithanarae -Yesu
+
+2. Alosanai Kartharae Ivar Arputha Manavarae Vin
+Samathana Pirabhu Sarva Vallavar Pirandhanarae - Yesu
+
+3. Mattu Thozhyvathilae – Paran Munnilaiyil Pirandhar Thazhmaiyai
+Pin Patruvoam – Avar Aezhaiyin Pathaiyilae - Yesu</div>
+          </details>
+          <details>
+            <summary><span class="num">21.</span><span class="title">Vinnoerkal Panpaata Innaalil (Tamil)</span></summary>
+            <div class="lyrics">Aa....aa....aa Vinnoerkal Panpaata Innaalil Vanthaarae |
+Kanni Mari Eenra Makan | Mannoerkal Ponnaalaay Innaalum Kontaata|2
+Anpaay Vantha Thaeva Suthan |
+
+piranthaar Piranthaar Piranthaar Piranthaar aalayam Kuutuvoem
+piranthaar Piranthaar Piranthaar Piranthaar aanantham Paatuvoem
+
+Vinmeenum Olikkaattis Sella | Pon Vaenthar Vazhi Kantaarae |
+Paalan Mukam Kantu Paninthu | 2 Kaanikkai Mun Vaiththaarae |
+
+negnsankal Poerra Nam Yaesu paalan Porpaatham Paninthituvoem
+neethiyin Thaevan Thoenri Vittarae avar Thuthi Paatituvoem (vinnoe...)
+
+Oliyaaka Ulakaththil Vanthaar | Ullaththil Amaithi Thanthaar |
+Irul Neenki Arul Vaazhvu Malara | 2 Innilam Thaeti Vanthaar |
+
+thunpankal Poekum Inpankal Saerum iraimakan Piranthu Vittaar
+maanitar Nammai Vinnoeraay Maarra manumakan Thoenri Vittaar (vinnoe..)</div>
+          </details>
+          <details>
+            <summary><span class="num">22.</span><span class="title">Namakkoer Paalakan - Piranthaarae (Tamil)</span></summary>
+            <div class="lyrics">Namakkoer Paalakan - Piranthaarae Namakkoer Kumaaran Kotukkappattaar
+Karththaththuvam Avar Thoelin Maelae Yaesuvin Naamam Athisayamae (2)
+
+Aaloesanaikalin Karththar Avar Vallamaiyulla Nithya Pithaa
+Samaathanap Pirapu Enappatuvaaraam Iyesuvin Naamam Athisayamae
+
+Paktharkal Yaavarum Kuutiyae Suththarai Vaazhththiyae Paatinar
+Aareeroe Paatiyae Paalakan Yaesuvai Thuththiyam Seythita Viraivoemae
+
+Aakamankal Pukazh Kuuravae Aarumai Iratsakar Piranththaarae
+Paaviyaam Un Paavak Karaikal Neekkavae Iraivan Un Ullil Pirappaaroe!</div>
+          </details>
+          <details>
+            <summary><span class="num">23.</span><span class="title">Kiristhu Piranthaarae (Tamil)</span></summary>
+            <div class="lyrics">Kiristhu Piranthaarae Thaazhmaiyai Thariththaarae
+Maattuth Thozhuvaththil Pirantha Thaevanai Poerrip Pukazhnthituvoem
+
+A..aa...aa...aa...aa Oohoe..hoe..hoe Lalaala..la..la Allaeluyaa Aamen.
+
+Vaattum Kulirinil Aezhmaik Kutilil Iraajaathi Raajan Piranthaar
+Thannaiyae Thaazhththi Karththaathi Karththar Manithanaaka Piranthaar.
+
+Ninthaikal Ozhiya Nammai Meetka Thaevaathi Thaevan Piranthaar
+Aaloesanaik Karththar Samaathaanap Pirapu Paalakanaakap Piranthaar.</div>
+          </details>
+          <details>
+            <summary><span class="num">24.</span><span class="title">Angels we have heard on high</span></summary>
+            <div class="lyrics">Angels we have heard on high Sweetly singing o’er the plains,
+And the mountains in reply Echoing their joyous strains.
+
+(Chorus) Glo — ria in excelsis Deo
+Glo — ria in excelsis Deo
+
+Shepherds, why this jubilee? Why your joyous strains prolong?
+What the gladsome tidings be Which inspire your heav’nly song?
+
+Come to Bethlehem and see Him Whose birth the angels sing;
+Come, adore on bended knee, Christ the Lord, the newborn King.
+
+See Him in a manger laid, Whom the choirs of angels praise;
+Mary, Joseph, lend your aid, While our hearts in love we raise.</div>
+          </details>
+          <details>
+            <summary><span class="num">25.</span><span class="title">Jingle bells, Jingle bells</span></summary>
+            <div class="lyrics">Dashing through the snow In a one horse open sleigh
+O'er the fields we go Laughing all the way
+Bells on bob tails ring Making spirits bright
+What fun it is to laugh and sing A sleighing song tonight
+Oh, jingle bells, jingle bells Jingle all the way
+
+Oh, what fun it is to ride In a one horse open sleigh
+Jingle bells, jingle bells Jingle all the way
+Oh, what fun it is to ride In a one horse open sleigh
+
+A day or two ago I thought I'd take a ride
+And soon Miss Fanny Bright Was seated by my side
+The horse was lean and lank Misfortune seemed his lot
+We got into a drifted bank And then we got upsot
+
+(Oh, jingle bells, jingle bells)</div>
+          </details>
+          <details>
+            <summary><span class="num">26.</span><span class="title">En Meetpar Kiristhu Piranthaar (Tamil)</span></summary>
+            <div class="lyrics">En Meetpar Kiristhu Piranthaar Enakkenna Aanantham
+En Meetpar Kiristhu Uthiththaar Enakkenna Paerinpam
+
+Puuloekamenkum Oor Seythi Maeloekamenkum Vin Seythi
+Narar Vaazhththitavae Perum Neethi Neer Vaarum Mey Joethi – En
+
+1. Unthan Makimaiyai Enrenrum Solvaen Unthan Kirupaiyin
+Maenmaiyaik Kantaen Niththiya Jeeva Kireetam Enathinrae
+Paraloeka Vaazhvinrae – En
+
+2. Aa! Allaeluuyaa Thuthi Paatu Anru Amalan Piranthaar
+Paatu Moetsa Vaasalai Thiranthaar Paatu En Naalum Pukazh Paatu – En</div>
+          </details>
+          <details>
+            <summary><span class="num">27.</span><span class="title">Kandaen En Kankulira (Tamil)</span></summary>
+            <div class="lyrics">Kandaen En Kankulira – Karththanai Yindru Kondaatum
+Vinnoergal Koemaanaik Kaiyilaenthik – Kan
+
+1. Peththalaem Saththira Munnanaiyil Urroeruk Kuyirtharum
+Unmaiyaam En Ratsakanaik – Kan
+
+2. Thaevaathi Thaevanai, Thaevasaenai Ooyaathu – Thoeththarikkum
+Oppunikar Arravanaik – Kan
+
+3. Paarvaenthar Thaetivarum Pakthar Paranai, Aavaenthar – Atithozhum
+Anpanai En Inpanai Naan – Kan
+
+4. Muththozhir Karththaavaam Munnavanai, Iththarai – Meetka Enai
+Nataththi Vantha Mannavanaik – Kan
+
+5. Mannoer Irul Poekkum Maamaniyai Vinnoerum – Vaentinirkum
+Vinmaniyaik Kanmaniyaik – Kan
+
+6. Antinoerk Kanpuruvaam Aarananai Kantoerkal – Kali Theerkkum
+Kaarananai, Puurananaik – Kan
+
+7. Annaiyaam – Kanniyum Aiyanutan Munnari – Yaappasuvin
+Pullanaiyil Unnazhakaik – Kan</div>
+          </details>
+          <details>
+            <summary><span class="num">28.</span><span class="title">Athisayamanavar Alosanai Karthar (Tamil)</span></summary>
+            <div class="lyrics">Athisayamanavar Alosanai Karthar Vallamai devan Nithya pitha avar – 2
+Enakkaga mannil vantha Samathaana Prabhu avar
+
+1. Irulil vaalntha ennai meettka Peroliyai vantha devan – 2
+En paavam pokka vantha deva aatukuttiye
+Enakkaga mannil vantha paraloga devane
+
+2. Immanuvelane ennodu iruppavare Udainthu pona ennayum
+Uruvaakkum deivame Enakkaga mannil vantha Elshadai devane</div>
+          </details>
+          <details>
+            <summary><span class="num">29.</span><span class="title">Emmanuel Emmanuel (Telugu)</span></summary>
+            <div class="lyrics">Emmanuel Emmanuel Emmanuel natho vunna Vaada
+
+Bethlehemulo putina Vaada Baluniga putina Vaada
+emmanuel natho vunna Vaada E Lokaniki Ra Raju
+duthala Che pogadabade Emmanuel natho vunna Vaada
+
+Mahima Gala Devuda - Goppa Karyamulu Cheyuvada
+Emmanuel natho vunna Vaada Samadhana Kartha neevu
+Melu Cheyu Thandri neevu Emmanuel natho vunna Vada
+
+Manavuniga Putina Vada Paramu Vidachi Vachina Vada
+Emmanuel natho vunna Vaada Sharira Dhariga Vachina Vada
+Nithyamu Matho Vunna Vada Emmanuel natho vunna Vaada</div>
+          </details>
+          <details>
+            <summary><span class="num">30.</span><span class="title">Masiha Aaya Hai (Hindi)</span></summary>
+            <div class="lyrics">Masiha aaya hai Jag me khushiyaa laaya hai
+Saare jahaan me aaj Ye paigaam aaya hai (2) Masiha aaya hai
+
+Bibi mariyam usey sulaane Meethi lori gaati hai
+Bade pyaar se usey sulaane Kaandho pe sehlaati hai (2)
+Masih ka raaj aaya hai Taare ne batlaya hai (2) Kyaa ?
+
+Thokar maaro soot boot ko Pehle dil ko saaf karo
+Jo bhi hoga dushman apna Pehle usko maaf karo (2)
+Masih ka raaj aaya hai Taare ne batlaya hai (2) Kyaa ?</div>
+          </details>
+          <details>
+            <summary><span class="num">31.</span><span class="title">Christmas endral konndaattamae (Tamil)</span></summary>
+            <div class="lyrics">Christmas endral konndaattamae aatippaati makilum naatkalae
+ontaka kootiyae karangalai thattiyae Yesuvai konndaaduvaangalae
+
+laa laa laa laa lai laa laa lai-5 lalla laa la laa la la lai
+
+vaalkkai ellaam selippaakumae Yesu intu piranthathinaalae
+nam vaalkkai maarumae puthu vali thirakkumae Yesu inga vanthathinaalae-2
+(laa laa laa..)
+
+kotiya viyaathi paranthu pokumae yekovaa raaqppaa ennai thoduvaarae
+viduvikkum thaevanae manithanaaka vanthaarae en vaalvil payamillaiyae-2
+(laa laa laa..)</div>
+          </details>
+          <details>
+            <summary><span class="num">32.</span><span class="title">Immaanuvael Immaanuvael (Tamil)</span></summary>
+            <div class="lyrics">Immaanuvael Immaanuvael Immaanuvael ennotiruppaarae-4
+
+1. Pethlakaemil pirantha avar paalakanaay jeniththa avar
+immaanuvael ennotiruppaarae ulakaththin raajaa avar
+thoothar pottum thaevan avar immaanuvael ennotiruppaarae-2 (Immaanuvael...)
+
+2. Makimai niraintha thaevan avar makaththuvaththin karththar avar
+immaanuvael ennotiruppaarae samaathaana pirapu avar nanmai tharum
+thakappan avar immaanuvael ennotiruppaarae-2 (Immaanuvael...)
+
+3. Manithanaakap pirantha avar paralokaththai thirantha avar
+immaanuvael ennotiruppaarae maamsamaaka vantha avar namakkul vaalum
+Yesu avar immaanuvael ennotiruppaarae-2 (Immaanuvael...)</div>
+          </details>
+          <details>
+            <summary><span class="num">33.</span><span class="title">Go, tell it on the mountain</span></summary>
+            <div class="lyrics">Go, tell it on the mountain Over the hills and everywhere
+Go, tell it on the mountain That Jesus Christ is born
+
+While shepherds kept their watching O'er silent flocks by night
+Behold throughout the heavens There shone a Holy light
+
+Go, tell it on the mountain Over the hills and everywhere
+Go, tell it on the mountain That Jesus Christ is born
+
+The shepherds feared and trembled When, lo! Above the Earth
+Rang out the angel chorus That hailed our Savior's birth
+
+Go, tell it on the mountain Over the hills and everywhere
+Go, tell it on the mountain That Jesus Christ is born
+
+Down in a lowly manger Our humble Christ was born
+And brought us all salvation That blessed Christmas morn
+
+Go, tell it on the mountain Over the hills and everywhere
+Go, tell it on the mountain That Jesus Christ is born
+That Jesus Christ is born</div>
+          </details>
+        </div>
+        
+      </section>
+    </main>
+    <script>
+      // Snowfall overlay
+      (function(){
+        const canvas = document.getElementById('snow-canvas');
+        if (!canvas) return;
+        const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        if (prefersReduced) { canvas.style.display = 'none'; return; }
+        const ctx = canvas.getContext('2d');
+        const dpr = window.devicePixelRatio || 1;
+        function resize(){ canvas.width = Math.floor(window.innerWidth * dpr); canvas.height = Math.floor(window.innerHeight * dpr); }
+        resize(); window.addEventListener('resize', resize);
+        const flakes = []; const targetCount = Math.min(160, Math.max(60, Math.floor((window.innerWidth * window.innerHeight) / 15000)));
+        function spawn(){ return { x: Math.random()*canvas.width, y: Math.random()*-canvas.height, r:(0.8+Math.random()*2.2)*dpr, vy:(0.4+Math.random()*1.1)*dpr, vx:(-0.4+Math.random()*0.8)*dpr, sway:Math.random()*Math.PI*2, swaySpeed:0.005+Math.random()*0.01, alpha:0.65+Math.random()*0.35 }; }
+        for (let i=0;i<targetCount;i++) flakes.push(spawn());
+        let last=0; function step(ts){ const dt=Math.min(32, ts-last||16); last=ts; ctx.clearRect(0,0,canvas.width,canvas.height); ctx.save(); ctx.fillStyle='rgba(255,255,255,0.95)';
+          for (let i=0;i<flakes.length;i++){ const f=flakes[i]; f.sway+=f.swaySpeed*dt; f.y+=f.vy*(dt/16); f.x+=(f.vx+Math.sin(f.sway)*0.6*dpr)*(dt/16); if (f.y-f.r>canvas.height){ flakes[i]=spawn(); flakes[i].y=-f.r; flakes[i].x=Math.random()*canvas.width; } if (f.x<-10*dpr) f.x=canvas.width+10*dpr; if (f.x>canvas.width+10*dpr) f.x=-10*dpr; ctx.globalAlpha=f.alpha; ctx.beginPath(); ctx.arc(f.x,f.y,f.r,0,Math.PI*2); ctx.fill(); }
+          ctx.restore(); requestAnimationFrame(step); }
+        requestAnimationFrame(step);
+      })();
+    </script>
+    <script>
+      // Focus and keyboard support for toggling details via Enter/Space
+      (function(){
+        const book = document.getElementById('songbook');
+        book.querySelectorAll('summary').forEach(s => {
+          s.addEventListener('keydown', (ev) => {
+            if (ev.key === ' ' || ev.key === 'Enter') { ev.preventDefault(); s.click(); }
+          });
+        });
+      })();
+    </script>
+  </body>
+</html>

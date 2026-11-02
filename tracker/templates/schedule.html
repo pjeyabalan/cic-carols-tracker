@@ -1,0 +1,921 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CIC Carols Schedule</title>
+    <link rel="icon" type="image/png" href="{{ url_for('favicon') }}" />
+    <style>
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Great+Vibes&family=Quicksand:wght@400;500;700&family=Mountains+of+Christmas:wght@700&display=swap');
+      :root { font-family: 'Quicksand', 'Inter', system-ui, -apple-system, sans-serif; color: #e2e8f0; }
+      body { margin: 0; background: #0a1f1a; background-image: radial-gradient(circle at 10% 5%, rgba(255,255,255,0.08) 2px, transparent 3px), radial-gradient(circle at 80% 20%, rgba(255,255,255,0.08) 2px, transparent 3px), radial-gradient(circle at 30% 70%, rgba(255,255,255,0.1) 2px, transparent 3px), linear-gradient(180deg, #0d2f25 0%, #061a16 60%, #061218 100%); background-size: auto, auto, auto, cover; }
+      #snow-canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 2; pointer-events: none; }
+      main, header, .schedule-shell { position: relative; z-index: 3; }
+      header {
+        text-align: center;
+        padding: 1.8rem 1rem;
+        position: relative;
+      }
+      .header-actions { position:absolute; top:1rem; right:1rem; display:flex; gap:0.5rem; }
+      .action-link { display:inline-flex; align-items:center; gap:0.35rem; color:#f8fafc; text-decoration:none; font-weight:700; background: rgba(0,0,0,0.25); border: 1px solid rgba(250,204,21,0.35); padding: 0.3rem 0.6rem; border-radius: 999px; font-size: 0.75rem; }
+      .action-link:hover { background: rgba(0,0,0,0.4); }
+      .action-link svg { width: 16px; height: 16px; fill: currentColor; }
+  /* Make the header solid and readable on all devices */
+  header h1 { margin: 0; font-family: 'Great Vibes', cursive; font-size: clamp(2.2rem, 6vw, 3.2rem); line-height: 1.1; color: #f8fafc; text-shadow: 0 2px 10px rgba(15, 23, 42, 0.5); }
+      .schedule-shell {
+        max-width: 1120px;
+        margin: 0 auto;
+        padding: 0 1rem 2rem;
+      }
+      .intro {
+        text-align: center;
+        margin-bottom: 1.5rem;
+      }
+      .intro p {
+        margin: 0.4rem auto;
+        max-width: 640px;
+        color: #475569;
+      }
+      .date-strip {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 0.6rem;
+        margin-bottom: 1rem;
+      }
+      .search-bar {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        flex-wrap: wrap;
+        margin-bottom: 1rem;
+      }
+      .search-bar input {
+        flex: 1;
+        min-width: 200px;
+        padding: 0.65rem 0.85rem;
+        border-radius: 999px;
+        border: 1px solid rgba(15, 23, 42, 0.2);
+        font-size: 0.95rem;
+      }
+      .search-bar button {
+        border: none;
+        border-radius: 999px;
+        padding: 0.65rem 1rem;
+        background: #2563eb;
+        color: #fff;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .search-feedback {
+        font-size: 0.85rem;
+        color: #475569;
+        margin-bottom: 0.5rem;
+      }
+      .date-pill {
+        border: 1px solid rgba(15, 23, 42, 0.2);
+        border-radius: 999px;
+        padding: 0.75rem 1rem;
+        background: #fff;
+        cursor: pointer;
+        font-weight: 600;
+        color: #0b0b1a;
+        transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        gap: 0.15rem;
+        position: relative;
+        width: 100%;
+      }
+      .date-pill.match {
+        border-color: #2563eb;
+        box-shadow: 0 12px 24px rgba(37, 99, 235, 0.25);
+      }
+      .date-pill.active {
+        border-color: #eab308;
+        box-shadow: 0 10px 25px rgba(234, 179, 8, 0.25);
+        transform: translateY(-2px);
+      }
+      .date-pill small {
+        color: #475569;
+        font-size: 0.8rem;
+        font-weight: 500;
+      }
+      .schedule-panel {
+        background: rgba(255,255,255,0.96);
+        border-radius: 1.4rem;
+        padding: 1.25rem;
+        box-shadow: 0 30px 80px rgba(8, 18, 16, 0.35);
+        min-height: 360px;
+      }
+  /* Outer rotating Santa name orbit for date pills */
+  .date-pill-wrap { position: relative; padding: 14px; }
+  .santa-orbit { position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); width: 100%; height: 100%; pointer-events:none; z-index: 3; }
+  .santa-orbit svg { width:100%; height:100%; overflow: visible; }
+  .santa-orbit text { font-family: 'Mountains of Christmas', 'Playfair Display', 'Quicksand', system-ui, -apple-system, sans-serif; font-weight: 800; fill: #ff0000; /* brighter festive red */ letter-spacing: 1.6px; stroke: #ffffff; stroke-width: 2.2; paint-order: stroke fill; }
+      .date-panel {
+        display: none;
+      }
+      .date-panel.active {
+        display: block;
+      }
+      .panel-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        flex-wrap: wrap;
+        gap: 0.35rem;
+        margin-bottom: 1rem;
+      }
+      .panel-header h2 { margin: 0; font-size: 1.4rem; color: #0b0b1a; }
+      .panel-header .pill { padding: 0.2rem 0.8rem; border-radius: 999px; background: linear-gradient(135deg, #ef4444, #22c55e); color: #fff; font-size: 0.85rem; font-weight: 800; }
+      .panel-right { display:flex; align-items:center; gap:0.6rem; }
+  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+      .card-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 1rem;
+      }
+      .reorder-bar {
+        display: flex;
+        justify-content: space-between;
+        gap: 0.5rem;
+        margin-bottom: 0.5rem;
+      }
+      .reorder-btn {
+        border: none;
+        border-radius: 999px;
+        padding: 0.45rem 0.9rem;
+        background: linear-gradient(135deg, #ef4444, #22c55e);
+        color: #fff;
+        font-weight: 800;
+        cursor: pointer;
+        font-size: 0.85rem;
+      }
+      .quick-add-btn { background: #059669; }
+      .quick-add-form {
+        display: none;
+        margin: 0.5rem 0 0.75rem;
+        padding: 0.75rem;
+        border: 1px dashed rgba(15, 23, 42, 0.25);
+        border-radius: 0.75rem;
+        background: #f8fafc;
+      }
+      .quick-add-form .row { display: grid; grid-template-columns: 1fr; gap: 0.5rem; }
+      .quick-add-form input {
+        width: 100%;
+        padding: 0.55rem 0.7rem;
+        border-radius: 0.6rem;
+        border: 1px solid rgba(15,23,42,0.2);
+        font-size: 0.95rem;
+      }
+      .quick-add-actions { display:flex; gap:0.5rem; margin-top:0.5rem; }
+      .btn-secondary {
+        border: 1px solid rgba(15,23,42,0.25);
+        background: #fff;
+        color: #0b0b1a;
+      }
+      .dragging {
+        opacity: 0.6;
+        border-color: #2563eb !important;
+      }
+      .house-card.highlighted {
+        border: 2px solid #2563eb;
+        box-shadow: 0 20px 45px rgba(37, 99, 235, 0.25);
+      }
+      .house-card.hidden {
+        display: none;
+      }
+      .house-card {
+        border-radius: 1.2rem;
+        border: 2px solid rgba(250, 204, 21, 0.25);
+        padding: 1rem;
+        background: rgba(255, 255, 255, 0.96);
+        box-shadow: 0 20px 60px rgba(8, 18, 16, 0.35);
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+        position: relative;
+      }
+      /* Ensure address links are readable */
+      .house-card a { color: #0b0b1a !important; }
+      .card-actions {
+        position: absolute;
+        top: 8px;
+        right: 10px;
+        display: flex;
+        gap: 0.5rem;
+      }
+      .card-actions a {
+        font-size: 0.8rem;
+        font-weight: 700;
+        color: #2563eb;
+        text-decoration: none;
+      }
+      .trash-btn {
+        border: none;
+        background: transparent;
+        color: #7f1d1d;
+        cursor: pointer;
+        font-size: 1rem;
+        line-height: 1;
+        padding: 0;
+      }
+      .trash-btn svg { width: 18px; height: 18px; fill: #7f1d1d; vertical-align: middle; }
+      .trash-btn:hover svg { fill: #5a1313; }
+  .quick-email { margin-top: 0.4rem; display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
+  .quick-email .email-view { font-size: 0.9rem; color: #0b0b1a; }
+  .quick-email .email-edit { display: none; gap: 0.35rem; align-items: center; }
+  .quick-email input[type="email"] { padding: 0.35rem 0.55rem; border-radius: 0.5rem; border: 1px solid rgba(15,23,42,0.2); font-size: 0.9rem; }
+  .quick-email .btn { border: none; border-radius: 0.6rem; padding: 0.35rem 0.6rem; font-size: 0.8rem; font-weight: 700; cursor: pointer; }
+  .quick-email .btn.icon { width: 28px; height: 28px; padding: 0; display:inline-flex; align-items:center; justify-content:center; border-radius: 999px; }
+  .quick-email .btn.icon svg { width: 16px; height: 16px; fill: currentColor; }
+  .quick-email .btn.save { background: #eaffee; color: #16a34a; border: 1px solid #16a34a; }
+  .quick-email .btn.cancel { background: #ffecec; color: #dc2626; border: 1px solid #dc2626; }
+  .quick-email .btn.edit { background: #e5e7eb; color: #0b0b1a; border: 1px solid rgba(15,23,42,0.15); }
+      .toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-size: 0.8rem;
+        color: #334155;
+      }
+      .switch {
+        position: relative;
+        width: 44px;
+        height: 24px;
+        background: #e5e7eb;
+        border-radius: 999px;
+        cursor: pointer;
+        transition: background 0.15s ease;
+        vertical-align: middle;
+      }
+      .switch::after {
+        content: '';
+        position: absolute;
+        top: 3px;
+        left: 3px;
+        width: 18px;
+        height: 18px;
+        background: #fff;
+        border-radius: 50%;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+        transition: transform 0.15s ease;
+      }
+      .switch.on {
+        background: #22c55e;
+      }
+      .switch.on::after {
+        transform: translateX(20px);
+      }
+      .house-name { margin: 0; font-size: 1.2rem; font-weight: 700; color: #0b0b1a; }
+      .house-time {
+        margin: 0;
+        color: #475569;
+        font-size: 0.95rem;
+      }
+      .status-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.3rem 0.75rem;
+        border-radius: 999px;
+        font-size: 0.78rem;
+        font-weight: 600;
+      }
+      .status-chip.status-pending { color: #b91c1c; border: 1px solid rgba(239, 68, 68, 0.35); }
+      .status-chip.status-done { color: #15803d; border: 1px solid rgba(22, 163, 74, 0.3); }
+      .placeholder {
+        color: #475569;
+        font-size: 0.95rem;
+        text-align: center;
+        margin-top: 1rem;
+      }
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        border: 0;
+      }
+      @media (max-width: 640px) {
+        .date-pill {
+          font-size: 0.9rem;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="snow-canvas" aria-hidden="true"></canvas>
+    <header>
+      <div class="header-actions">
+        <a href="{{ url_for('home') }}" class="action-link" aria-label="Home" title="Home">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l9 8h-3v9H6v-9H3l9-8z"></path></svg>
+          Home
+        </a>
+        <a href="{{ url_for('registrations_list') }}" class="action-link" aria-label="Registrations" title="Registrations">
+          Registrations{% if unscheduled_count %} ({{ unscheduled_count }}){% endif %}
+        </a>
+        <a href="{{ url_for('backup_export_csv') }}" class="action-link" aria-label="Backup CSV" title="Download Full Database Backup CSV" download>
+          Backup CSV
+        </a>
+        <a href="{{ url_for('tracker') }}" class="action-link" aria-label="Tracker" title="Tracker">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11h18v2H3zM5 7h14v2H5zM7 15h10v2H7z"></path></svg>
+          Tracker
+        </a>
+      </div>
+      <h1>CIC Carols Quick Calendar</h1>
+    </header>
+    <section class="schedule-shell">
+      <div class="intro">
+        <p style="color:#cbd5e1;">
+          Christmas Carols {{ season_year }} schedule (Tuesdays, Wednesdays, Fridays, and Saturdays, plus any custom scheduled nights).
+        </p>
+      </div>
+      <form class="search-bar" id="search-form">
+        <label for="search-term" class="sr-only">Search by family name</label>
+        <input id="search-term" name="search" type="search" placeholder="Search by family first name" />
+        <button type="submit">Find date</button>
+      </form>
+      <p class="search-feedback" id="search-feedback">Type a family's first name to highlight the scheduled date.</p>
+      <div class="date-strip">
+        {% for block in schedule_blocks %}
+          <div class="date-pill-wrap">
+            <button
+              type="button"
+              class="date-pill"
+              data-target="{{ block.id }}"
+            >
+              {{ block.display }}
+              {% if block.city %}
+              <small>{{ block.city }}</small>
+              {% endif %}
+              <small>{{ block.count }} addresses</small>
+            </button>
+            {% if block.santa %}
+            <div class="santa-orbit" role="img" aria-label="Santa: {{ block.santa }}">
+              <svg viewBox="0 0 200 100" preserveAspectRatio="none" aria-hidden="true">
+                <defs>
+                  <!-- Proper rounded rectangle (capsule) perimeter path around the pill -->
+                  <path id="orbitPath-{{ block.id }}" d="M 25 0
+                    H 175
+                    A 25 25 0 0 1 200 25
+                    V 75
+                    A 25 25 0 0 1 175 100
+                    H 25
+                    A 25 25 0 0 1 0 75
+                    V 25
+                    A 25 25 0 0 1 25 0
+                    Z" />
+                  <!-- Golden glow filter for festive emphasis -->
+                  <filter id="santaGlow-{{ block.id }}" x="-50%" y="-50%" width="200%" height="200%">
+                    <feDropShadow dx="0" dy="0" stdDeviation="2.0" flood-color="#facc15" flood-opacity="1.0" />
+                  </filter>
+                </defs>
+                <text font-size="14" filter="url(#santaGlow-{{ block.id }})">
+                  <textPath href="#orbitPath-{{ block.id }}" xlink:href="#orbitPath-{{ block.id }}" startOffset="0%">🎅 {{ block.santa }}
+                    <animate attributeName="startOffset" values="0%;100%" dur="12s" repeatCount="indefinite" />
+                  </textPath>
+                </text>
+              </svg>
+            </div>
+            {% endif %}
+          </div>
+        {% endfor %}
+      </div>
+      <div class="schedule-panel">
+        {% for block in schedule_blocks %}
+        <div class="date-panel" id="panel-{{ block.id }}">
+          <div class="panel-header">
+            <h2>
+              {{ block.display }}
+              {% if block.city %}
+                <span style="font-size:0.95rem; color:#475569; font-weight:600;">→ {{ block.city }}</span>
+              {% endif %}
+            </h2>
+            <div class="panel-right">
+              <span class="pill">{{ block.count }} addresses</span>
+            </div>
+          </div>
+          {% if using_postgres %}
+          <div class="reorder-bar">
+            <button type="button" class="reorder-btn quick-add-btn" data-qa="open" data-date="{{ block.date }}">Quick Add</button>
+            {% if block.stops %}
+            <button type="button" class="reorder-btn" data-date="{{ block.date }}">Save order</button>
+            {% endif %}
+          </div>
+          <div class="quick-add-form" data-date="{{ block.date }}">
+            <div class="row">
+              <input type="text" placeholder="Full Name" data-qa="name" />
+              <input type="text" placeholder="Full Address (street, city, state)" data-qa="address" />
+              <input type="text" placeholder="Referral (defaults to 'church')" data-qa="referral" value="church" />
+            </div>
+            <div class="quick-add-actions">
+              <button type="button" class="reorder-btn" data-qa="submit" data-date="{{ block.date }}">Add</button>
+              <button type="button" class="reorder-btn btn-secondary" data-qa="cancel" data-date="{{ block.date }}">Cancel</button>
+            </div>
+          </div>
+          {% endif %}
+          {% if block.stops %}
+          <div class="card-grid" data-date="{{ block.date }}">
+            {% for entry in block.stops %}
+            <article class="house-card" {% if using_postgres and entry.stop.id %}draggable="true" data-id="{{ entry.stop.id }}"{% endif %}>
+              {% if using_postgres and entry.stop.id %}
+              <div class="card-actions">
+                <a href="{{ url_for('edit_by_id', item_id=entry.stop.id) }}">Edit</a>
+                <button type="button" class="trash-btn" title="Delete" data-id="{{ entry.stop.id }}">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M9 3h6a1 1 0 0 1 1 1v2h4a1 1 0 1 1 0 2h-1l-1.1 12.4A2 2 0 0 1 15.9 23H8.1a2 2 0 0 1-1.99-1.6L5 8H4a1 1 0 1 1 0-2h4V4a1 1 0 0 1 1-1zm1 3h4V4h-4v2zM7 8l1 12h8l1-12H7zm3 3a1 1 0 0 1 1 1v6a1 1 0 1 1-2 0v-6a1 1 0 0 1 1-1zm4 0a1 1 0 0 1 1 1v6a1 1 0 1 1-2 0v-6a1 1 0 0 1 1-1z"></path>
+                  </svg>
+                </button>
+              </div>
+              {% endif %}
+              <p class="house-name">{{ entry.stop.name }}</p>
+              <span class="status-chip {{ entry.css_class }}">{{ entry.badge }}</span>
+              {% if using_postgres and entry.stop.id is not none %}
+              <div class="toggle" style="margin-top:0.25rem;">
+                <span>Visited:</span>
+                <div class="switch {% if entry.stop.address_visited %}on{% endif %}"
+                     role="switch"
+                     aria-checked="{{ 'true' if entry.stop.address_visited else 'false' }}"
+                     tabindex="0"
+                     data-id="{{ entry.stop.id }}"></div>
+              </div>
+              {% endif %}
+              <p style="margin:0.25rem 0 0; font-weight:600;">
+                <a
+                  href="https://www.google.com/maps/search/?api=1&query={{ (entry.stop.address ~ ' ' ~ (entry.stop.zipcode or '')) | urlencode }}"
+                  target="_blank"
+                  rel="noopener"
+                  style="color:inherit;text-decoration:underline;"
+                >
+                  {{ entry.stop.address }}{% if entry.stop.zipcode %}, {{ entry.stop.zipcode }}{% endif %}
+                </a>
+              </p>
+              {% if using_postgres and entry.stop.id is not none %}
+              <div class="quick-email" data-id="{{ entry.stop.id }}">
+                <span class="email-view">
+                  {% if entry.stop.email_id %}
+                    Email: <strong class="email-text">{{ entry.stop.email_id }}</strong>
+                  {% else %}
+                    <span class="email-text" style="color:#64748b;">No email</span>
+                  {% endif %}
+                </span>
+                <button type="button" class="btn edit email-edit-toggle">{{ 'Edit' if entry.stop.email_id else 'Add email' }}</button>
+                <div class="email-edit">
+                  <input type="email" placeholder="name@example.com" value="{{ entry.stop.email_id or '' }}" />
+                  <button type="button" class="btn icon save" aria-label="Save email" title="Save">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 16.2l-3.5-3.5-1.4 1.4L9 19 20.3 7.7l-1.4-1.4z"></path></svg>
+                  </button>
+                  <button type="button" class="btn icon cancel" aria-label="Cancel" title="Cancel">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.3 5.7l-1.4-1.4L12 9.17 7.1 4.3 5.7 5.7 10.6 10.6 5.7 15.5l1.4 1.4L12 12.03l4.9 4.87 1.4-1.4-4.9-4.9z"></path></svg>
+                  </button>
+                </div>
+              </div>
+              {% endif %}
+              {% if entry.stop.referral %}
+              <p style="margin:0.1rem 0 0; color:#475569; font-size:0.85rem;">
+                Referral: <strong>{{ entry.stop.referral }}</strong>
+              </p>
+              {% endif %}
+              {% if entry.stop.family_members and entry.stop.family_members|length > 0 %}
+              <p style="margin:0.1rem 0 0; color:#475569; font-size:0.85rem;">{{ entry.stop.family_members | join(', ') }}</p>
+              {% endif %}
+            </article>
+            {% endfor %}
+          </div>
+          {% else %}
+          <p class="placeholder">No houses planned for this date yet.</p>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+    <script>
+      // Snowfall overlay (prefers-reduced-motion honored)
+      (function(){
+        const canvas = document.getElementById('snow-canvas');
+        if (!canvas) return;
+        const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        if (prefersReduced) { canvas.style.display = 'none'; return; }
+        const ctx = canvas.getContext('2d');
+        const dpr = window.devicePixelRatio || 1;
+        function resize(){ canvas.width = Math.floor(window.innerWidth * dpr); canvas.height = Math.floor(window.innerHeight * dpr); }
+        resize(); window.addEventListener('resize', resize);
+        const flakes = []; const targetCount = Math.min(160, Math.max(60, Math.floor((window.innerWidth * window.innerHeight) / 15000)));
+        function spawn(){ return { x: Math.random()*canvas.width, y: Math.random()*-canvas.height, r:(0.8+Math.random()*2.2)*dpr, vy:(0.4+Math.random()*1.1)*dpr, vx:(-0.4+Math.random()*0.8)*dpr, sway:Math.random()*Math.PI*2, swaySpeed:0.005+Math.random()*0.01, alpha:0.65+Math.random()*0.35 }; }
+        for (let i=0;i<targetCount;i++) flakes.push(spawn());
+        let last=0; function step(ts){ const dt=Math.min(32, ts-last||16); last=ts; ctx.clearRect(0,0,canvas.width,canvas.height); ctx.save(); ctx.fillStyle='rgba(255,255,255,0.95)';
+          for (let i=0;i<flakes.length;i++){ const f=flakes[i]; f.sway+=f.swaySpeed*dt; f.y+=f.vy*(dt/16); f.x+=(f.vx+Math.sin(f.sway)*0.6*dpr)*(dt/16); if (f.y-f.r>canvas.height){ flakes[i]=spawn(); flakes[i].y=-f.r; flakes[i].x=Math.random()*canvas.width; } if (f.x<-10*dpr) f.x=canvas.width+10*dpr; if (f.x>canvas.width+10*dpr) f.x=-10*dpr; ctx.globalAlpha=f.alpha; ctx.beginPath(); ctx.arc(f.x,f.y,f.r,0,Math.PI*2); ctx.fill(); }
+          ctx.restore(); requestAnimationFrame(step); }
+        requestAnimationFrame(step);
+      })();
+    </script>
+    <script>
+      (() => {
+        const buttons = Array.from(document.querySelectorAll('.date-pill'));
+        const panels = Array.from(document.querySelectorAll('.date-panel'));
+        const searchForm = document.querySelector('#search-form');
+        const searchInput = document.querySelector('#search-term');
+        const feedback = document.querySelector('#search-feedback');
+        const clearMatches = () => {
+          panels.forEach(panel => panel.classList.remove('matched'));
+          buttons.forEach(btn => btn.classList.remove('match'));
+          document.querySelectorAll('.house-card').forEach(card => {
+            card.classList.remove('highlighted', 'hidden');
+          });
+        };
+        if (!buttons.length) return;
+        const activate = (id) => {
+          buttons.forEach(btn => btn.classList.toggle('active', btn.dataset.target === id));
+          panels.forEach(panel => panel.classList.toggle('active', panel.id === `panel-${id}`));
+        };
+        buttons.forEach(btn => {
+          btn.addEventListener('click', () => {
+            clearMatches();
+            activate(btn.dataset.target);
+          });
+        });
+        // Activate today's date if present; otherwise the next upcoming date with addresses; else fallback to first
+        const fmt = (d) => {
+          const y = d.getFullYear();
+          const m = String(d.getMonth() + 1).padStart(2, '0');
+          const dd = String(d.getDate()).padStart(2, '0');
+          return `${y}-${m}-${dd}`;
+        };
+        const todayIso = fmt(new Date());
+        const todayBtn = buttons.find(b => b.dataset.target === todayIso);
+        if (todayBtn) {
+          activate(todayIso);
+        } else {
+          // Find the next future date that has at least one house-card
+          const futureWithHouses = buttons
+            .map(b => ({ id: b.dataset.target, btn: b }))
+            .filter(x => x.id >= todayIso)
+            .find(x => {
+              const panel = document.getElementById(`panel-${x.id}`);
+              return panel && panel.querySelectorAll('.house-card').length > 0;
+            });
+          if (futureWithHouses) {
+            activate(futureWithHouses.id);
+          } else {
+            activate(buttons[0].dataset.target);
+          }
+        }
+        if (searchForm && searchInput && feedback) {
+          const findMatch = (query) => {
+            const normalized = query.toLowerCase();
+            for (const panel of panels) {
+              for (const nameEl of panel.querySelectorAll('.house-name')) {
+                const firstName = (nameEl.textContent || '').split(/\s+/)[0].toLowerCase();
+                if (firstName === normalized) {
+                  return { panelId: panel.id.replace('panel-', ''), label: nameEl.textContent };
+                }
+              }
+            }
+            return null;
+          };
+          searchForm.addEventListener('submit', (event) => {
+            event.preventDefault();
+            const term = searchInput.value.trim();
+            if (!term) {
+              feedback.textContent = 'Please enter a first name to search.';
+              return;
+            }
+            const match = findMatch(term);
+            clearMatches();
+            if (match) {
+              const targetButton = buttons.find(btn => btn.dataset.target === match.panelId);
+              targetButton?.classList.add('match');
+              const targetPanel = document.getElementById(`panel-${match.panelId}`);
+              targetPanel?.classList.add('matched');
+              activate(match.panelId);
+              targetButton?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              const cards = Array.from(targetPanel?.querySelectorAll('.house-card') || []);
+              cards.forEach(card => {
+                if (card.querySelector('.house-name')?.textContent?.trim() === match.label) {
+                  card.classList.add('highlighted');
+                } else {
+                  card.classList.add('hidden');
+                }
+              });
+              feedback.textContent = `Showing ${match.label} scheduled on ${targetButton?.textContent?.trim() || ''}.`;
+            } else {
+              feedback.textContent = 'No family found with that first name.';
+            }
+          });
+        }
+
+        // Toggle visited via AJAX
+        const updateChip = (card, visited) => {
+          const chip = card.querySelector('.status-chip');
+          if (!chip) return;
+          chip.textContent = visited ? 'Completed' : 'Upcoming';
+          chip.classList.toggle('status-done', !!visited);
+          chip.classList.toggle('status-pending', !visited);
+        };
+        document.querySelectorAll('.switch[data-id]').forEach(sw => {
+          const onKey = (ev) => {
+            if (ev.key === ' ' || ev.key === 'Enter') {
+              ev.preventDefault();
+              sw.click();
+            }
+          };
+          sw.addEventListener('keydown', onKey);
+          sw.addEventListener('click', async () => {
+            const id = sw.getAttribute('data-id');
+            const card = sw.closest('.house-card');
+            const desired = !sw.classList.contains('on');
+            try {
+              const resp = await fetch(`/api/stops/${id}/visited`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ visited: desired })
+              });
+              const data = await resp.json();
+              if (data && data.ok) {
+                const final = !!data.visited;
+                sw.classList.toggle('on', final);
+                sw.setAttribute('aria-checked', final ? 'true' : 'false');
+                updateChip(card, final);
+              } else {
+                alert(data && data.error ? data.error : 'Failed to update visited status');
+              }
+            } catch (e) {
+              alert('Network error updating visited status');
+            }
+          });
+        });
+
+        // Drag-and-drop reorder
+        const grids = Array.from(document.querySelectorAll('.card-grid[data-date]'));
+        let dragSrc;
+        const handleDragStart = (e) => {
+          const card = e.currentTarget;
+          dragSrc = card;
+          card.classList.add('dragging');
+          e.dataTransfer.effectAllowed = 'move';
+          e.dataTransfer.setData('text/plain', card.dataset.id || '');
+        };
+        const handleDragOver = (e) => {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+          const card = e.currentTarget;
+          const grid = card.parentElement;
+          if (!grid || !dragSrc || dragSrc === card) return;
+          // Insert before/after based on position
+          const rect = card.getBoundingClientRect();
+          const before = (e.clientY - rect.top) < rect.height / 2;
+          grid.insertBefore(dragSrc, before ? card : card.nextSibling);
+        };
+        const handleDragEnd = (e) => {
+          e.currentTarget.classList.remove('dragging');
+          dragSrc = null;
+        };
+        const attachDnD = (grid) => {
+          grid.querySelectorAll('.house-card[draggable="true"]').forEach(card => {
+            card.addEventListener('dragstart', handleDragStart);
+            card.addEventListener('dragover', handleDragOver);
+            card.addEventListener('dragend', handleDragEnd);
+          });
+        };
+        grids.forEach(attachDnD);
+
+        // Save order button
+        document.querySelectorAll('.reorder-btn[data-date]').forEach(btn => {
+          if (btn.getAttribute('data-qa') === 'open') return; // handled separately
+          btn.addEventListener('click', async () => {
+            const date = btn.getAttribute('data-date');
+            const grid = document.querySelector(`.card-grid[data-date="${date}"]`);
+            if (!grid) return;
+            const ids = Array.from(grid.querySelectorAll('.house-card[data-id]')).map(el => parseInt(el.getAttribute('data-id'), 10)).filter(n => !isNaN(n));
+            if (!ids.length) {
+              alert('No reorderable items found.');
+              return;
+            }
+            try {
+              const resp = await fetch('/api/schedule/reorder', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ date, ids })
+              });
+              const data = await resp.json();
+              if (data && data.ok) {
+                alert('Order saved.');
+              } else {
+                alert(data && data.error ? data.error : 'Failed to save order');
+              }
+            } catch (e) {
+              alert('Network error saving order');
+            }
+          });
+        });
+
+        // Quick Add show/hide
+        document.querySelectorAll('.quick-add-btn[data-date]').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const date = btn.getAttribute('data-date');
+            const form = document.querySelector(`.quick-add-form[data-date="${date}"]`);
+            if (!form) return;
+            form.style.display = form.style.display === 'none' || form.style.display === '' ? 'block' : 'none';
+          });
+        });
+        document.querySelectorAll('.quick-add-form .reorder-btn[data-qa="submit"]').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const date = btn.getAttribute('data-date');
+            const form = document.querySelector(`.quick-add-form[data-date="${date}"]`);
+            const nameEl = form?.querySelector('input[data-qa="name"]');
+            const addrEl = form?.querySelector('input[data-qa="address"]');
+            const name = (nameEl?.value || '').trim();
+            const address = (addrEl?.value || '').trim();
+            const refEl = form?.querySelector('input[data-qa="referral"]');
+            const referral = (refEl?.value || 'church').trim() || 'church';
+            if (!name || !address) {
+              alert('Please enter both Name and Address.');
+              return;
+            }
+            try {
+              const resp = await fetch('/api/schedule/quick_add', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ date, name, address, referral })
+              });
+              const data = await resp.json();
+              if (data && data.ok) {
+                const grid = document.querySelector(`.card-grid[data-date="${date}"]`);
+                if (grid) {
+                  const card = document.createElement('article');
+                  card.className = 'house-card';
+                  if (data.id) {
+                    card.setAttribute('draggable', 'true');
+                    card.setAttribute('data-id', String(data.id));
+                  }
+                  card.innerHTML = `
+                    ${data.id ? `<div class="card-actions"><a href="/edit/${data.id}">Edit</a></div>` : ''}
+                    <p class="house-name"></p>
+                    <span class="status-chip status-pending">Upcoming</span>
+                    ${data.id ? `
+                    <div class="toggle" style="margin-top:0.25rem;">
+                      <span>Visited:</span>
+                      <div class="switch" role="switch" aria-checked="false" tabindex="0" data-id="${data.id}"></div>
+                    </div>` : ''}
+                    <p style="margin:0.25rem 0 0; font-weight:600;">
+                      <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(data.address)}" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;">${data.address}</a>
+                    </p>
+                    ${data.referral ? `<p style="margin:0.1rem 0 0; color:#475569; font-size:0.85rem;">Referral: <strong>${data.referral}</strong></p>` : ''}
+                  `;
+                  card.querySelector('.house-name').textContent = data.name;
+                  grid.appendChild(card);
+                  // Attach behaviors
+                  if (data.id) {
+                    // visited toggle
+                    const sw = card.querySelector('.switch[data-id]');
+                    if (sw) {
+                      const onKey = (ev) => { if (ev.key === ' ' || ev.key === 'Enter') { ev.preventDefault(); sw.click(); } };
+                      sw.addEventListener('keydown', onKey);
+                      sw.addEventListener('click', async () => {
+                        const id = sw.getAttribute('data-id');
+                        const desired = !sw.classList.contains('on');
+                        try {
+                          const resp = await fetch(`/api/stops/${id}/visited`, {
+                            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ visited: desired })
+                          });
+                          const data2 = await resp.json();
+                          if (data2 && data2.ok) {
+                            const final = !!data2.visited;
+                            sw.classList.toggle('on', final);
+                            sw.setAttribute('aria-checked', final ? 'true' : 'false');
+                            updateChip(card, final);
+                          } else {
+                            alert(data2 && data2.error ? data2.error : 'Failed to update visited status');
+                          }
+                        } catch (e) { alert('Network error updating visited status'); }
+                      });
+                    }
+                    // drag-and-drop
+                    attachDnD(grid);
+                  }
+                }
+                // bump counts
+                const pill = document.querySelector(`.date-pill[data-target="${date}"] small`);
+                if (pill) {
+                  const t = pill.textContent || '';
+                  const num = parseInt((t.match(/\d+/) || ['0'])[0], 10) + 1;
+                  pill.textContent = `${num} addresses`;
+                }
+                const headerCount = document.querySelector(`#panel-${date} .panel-header .pill`);
+                if (headerCount) {
+                  const t = headerCount.textContent || '';
+                  const num = parseInt((t.match(/\d+/) || ['0'])[0], 10) + 1;
+                  headerCount.textContent = `${num} addresses`;
+                }
+                // clear & hide form
+                if (nameEl) nameEl.value = '';
+                if (addrEl) addrEl.value = '';
+                if (refEl) refEl.value = 'church';
+                const form = document.querySelector(`.quick-add-form[data-date="${date}"]`);
+                if (form) form.style.display = 'none';
+                alert('Added.');
+              } else {
+                alert(data && data.error ? data.error : 'Failed to add');
+              }
+            } catch (e) {
+              alert('Network error adding address');
+            }
+          });
+        });
+        document.querySelectorAll('.quick-add-form .btn-secondary[data-qa="cancel"]').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const date = btn.getAttribute('data-date');
+            const form = document.querySelector(`.quick-add-form[data-date="${date}"]`);
+            if (form) form.style.display = 'none';
+          });
+        });
+
+        // Delete address via AJAX
+        document.querySelectorAll('.trash-btn[data-id]').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const id = btn.getAttribute('data-id');
+            const card = btn.closest('.house-card');
+            const panel = btn.closest('.date-panel');
+            const date = panel ? panel.id.replace('panel-', '') : null;
+            if (!id || !card) return;
+            if (!confirm('Delete this address? This cannot be undone.')) return;
+            try {
+              const resp = await fetch(`/api/stops/${id}/delete`, { method: 'POST' });
+              const data = await resp.json();
+              if (data && data.ok) {
+                // Remove card
+                card.remove();
+                // Update counts
+                if (date) {
+                  const pill = document.querySelector(`.date-pill[data-target="${date}"] small`);
+                  if (pill) {
+                    const t = pill.textContent || '';
+                    const num = Math.max(0, parseInt((t.match(/\d+/) || ['0'])[0], 10) - 1);
+                    pill.textContent = `${num} addresses`;
+                  }
+                  const headerCount = document.querySelector(`#panel-${date} .panel-header .pill`);
+                  if (headerCount) {
+                    const t = headerCount.textContent || '';
+                    const num = Math.max(0, parseInt((t.match(/\d+/) || ['0'])[0], 10) - 1);
+                    headerCount.textContent = `${num} addresses`;
+                  }
+                }
+              } else {
+                alert(data && data.error ? data.error : 'Failed to delete');
+              }
+            } catch (e) {
+              alert('Network error while deleting');
+            }
+          });
+        });
+
+        // Quick Email Edit inline
+        document.querySelectorAll('.quick-email[data-id]').forEach(container => {
+          const id = container.getAttribute('data-id');
+          const toggle = container.querySelector('.email-edit-toggle');
+          const edit = container.querySelector('.email-edit');
+          const view = container.querySelector('.email-view');
+          const input = container.querySelector('input[type="email"]');
+          const btnSave = container.querySelector('.btn.save');
+          const btnCancel = container.querySelector('.btn.cancel');
+          if (!toggle || !edit || !view || !input || !btnSave || !btnCancel) return;
+          const showEdit = () => { edit.style.display = 'inline-flex'; toggle.style.display = 'none'; };
+          const hideEdit = () => { edit.style.display = 'none'; toggle.style.display = ''; };
+          toggle.addEventListener('click', (e) => { e.preventDefault(); showEdit(); input.focus(); });
+          btnCancel.addEventListener('click', () => { hideEdit(); });
+          btnSave.addEventListener('click', async () => {
+            const email = input.value.trim();
+            try {
+              const resp = await fetch(`/api/stops/${id}/email`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email })
+              });
+              const data = await resp.json();
+              if (data && data.ok) {
+                const textEl = container.querySelector('.email-text');
+                if (data.email) {
+                  if (textEl) { textEl.textContent = data.email; textEl.style.color = '#0b0b1a'; }
+                  view.innerHTML = `Email: <strong class="email-text">${data.email}</strong>`;
+                  toggle.textContent = 'Edit';
+                } else {
+                  if (textEl) { textEl.textContent = 'No email'; textEl.style.color = '#64748b'; }
+                  view.innerHTML = `<span class="email-text" style="color:#64748b;">No email</span>`;
+                  toggle.textContent = 'Add email';
+                }
+                hideEdit();
+              } else {
+                alert(data && data.error ? data.error : 'Failed to update email');
+              }
+            } catch (e) {
+              alert('Network error updating email');
+            }
+          });
+        });
+      })();
+    </script>
+  </body>
+</html>

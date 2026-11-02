@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Add Address</title>
+    <link rel="icon" type="image/png" href="{{ url_for('favicon') }}" />
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Great+Vibes&family=Quicksand:wght@400;500;700&display=swap');
+      :root { font-family: 'Quicksand', system-ui, -apple-system, sans-serif; color: #e2e8f0; }
+      body { margin: 0; background: #0a1f1a; background-image: radial-gradient(circle at 10% 5%, rgba(255,255,255,0.08) 2px, transparent 3px), radial-gradient(circle at 80% 20%, rgba(255,255,255,0.08) 2px, transparent 3px), radial-gradient(circle at 30% 70%, rgba(255,255,255,0.1) 2px, transparent 3px), linear-gradient(180deg, #0d2f25 0%, #061a16 60%, #061218 100%); background-size: auto, auto, auto, cover; }
+      .shell { max-width: 760px; margin: 0 auto; padding: 1.5rem 1rem 2rem; position: relative; z-index: 3; }
+      #snow-canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 2; pointer-events: none; }
+      header { display:flex; align-items:center; justify-content:space-between; margin-bottom: 1rem; }
+      header a { text-decoration:none; font-weight:700; color:#f8fafc; }
+      h1 { margin:0; font-size: clamp(1.6rem, 4vw, 2rem); font-family:'Great Vibes', cursive; background: linear-gradient(120deg, #facc15, #ef4444 50%, #22c55e); -webkit-background-clip:text; background-clip:text; color: transparent; text-shadow: 0 2px 10px rgba(250, 204, 21, 0.25); }
+      form { background: rgba(255,255,255,0.96); border: 2px solid rgba(250, 204, 21, 0.25); border-radius:1rem; padding:1rem; box-shadow:0 30px 60px rgba(8,18,16,0.35); }
+      .row { display:flex; gap:0.8rem; flex-wrap:wrap; }
+      .field { flex:1; min-width: 220px; display:flex; flex-direction:column; gap:0.35rem; }
+      label { font-weight:600; font-size:0.9rem; }
+      input, textarea { border:1px solid rgba(15,23,42,0.2); border-radius:0.6rem; padding:0.6rem 0.7rem; font-size:0.95rem; }
+      textarea { min-height: 84px; }
+      .help { font-size:0.8rem; color:#64748b; }
+      .actions { margin-top:1rem; display:flex; gap:0.6rem; }
+  button { border:none; border-radius:999px; padding:0.7rem 1.2rem; font-weight:800; cursor:pointer; }
+  .primary { background: linear-gradient(135deg, #ef4444, #22c55e); color:#fff; box-shadow: 0 8px 18px rgba(239, 68, 68, 0.25); }
+      .secondary { background:#e2e8f0; color:#0b0b1a; }
+      .alert { margin: 0.75rem 0; padding: 0.6rem 0.8rem; border-radius:0.6rem; }
+      .alert.error { background:#fee2e2; color:#7f1d1d; border:1px solid #fecaca; }
+      .alert.success { background:#dcfce7; color:#14532d; border:1px solid #bbf7d0; }
+      .disabled { opacity: 0.5; pointer-events: none; }
+    </style>
+  </head>
+  <body>
+    <canvas id="snow-canvas" aria-hidden="true"></canvas>
+    <div class="shell">
+      <header>
+        <h1>Add Address</h1>
+        <a href="{{ url_for('schedule') }}">Back to Schedule</a>
+      </header>
+      
+      {% if error %}
+        <div class="alert error">{{ error }}</div>
+      {% endif %}
+      {% if message %}
+        <div class="alert success">{{ message }}</div>
+      {% endif %}
+  <form method="post" action="{{ url_for('add') }}">
+        <div class="row">
+          <div class="field">
+            <label for="name">Full Name *</label>
+            <input id="name" name="name" type="text" required />
+          </div>
+          <div class="field">
+            <label for="address">Street Address *</label>
+            <input id="address" name="address" type="text" required />
+          </div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label for="city">City</label>
+            <input id="city" name="city" type="text" />
+            <span class="help">Optional</span>
+          </div>
+          <div class="field">
+            <label for="state">State</label>
+            <input id="state" name="state" type="text" value="{{ default_state or 'IL' }}" />
+            <span class="help">Optional — defaults to IL</span>
+          </div>
+          <div class="field">
+            <label>Visited?</label>
+            <div>
+              <label style="margin-right:1rem;"><input type="radio" name="address_visited" value="yes" /> Yes</label>
+              <label><input type="radio" name="address_visited" value="no" checked /> No</label>
+            </div>
+            <span class="help">Mark as completed if already visited</span>
+          </div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label for="family_members">Family Members</label>
+            <input id="family_members" name="family_members" type="text" placeholder="Comma-separated (e.g., John, Jane)" />
+            <span class="help">Optional</span>
+          </div>
+          <div class="field">
+            <label for="contact_number">Contact Number</label>
+            <input id="contact_number" name="contact_number" type="text" />
+            <span class="help">Optional</span>
+          </div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label for="email">Email</label>
+            <input id="email" name="email" type="email" />
+            <span class="help">Optional</span>
+          </div>
+          <div class="field">
+            <label for="prayer_request">Prayer Request</label>
+            <textarea id="prayer_request" name="prayer_request"></textarea>
+            <span class="help">Optional</span>
+          </div>
+          <div class="field">
+            <label for="referral">Referral</label>
+            <input id="referral" name="referral" type="text" value="church" />
+            <span class="help">Defaults to "church" if left blank</span>
+          </div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label for="zipcode">Zipcode</label>
+            <input id="zipcode" name="zipcode" type="text" />
+            <span class="help">Optional</span>
+          </div>
+          <div class="field">
+            <label for="date">Date</label>
+            <input id="date" name="date" type="date" required />
+            <span class="help">Required — weekday will be derived automatically</span>
+          </div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label for="scheduled_time">Scheduled Time (HH:MM 24h)</label>
+            <input id="scheduled_time" name="scheduled_time" type="time" step="60" />
+            <span class="help">Optional — leave empty if not set</span>
+          </div>
+          <div class="field">
+            <label for="visit_order">Visit Order</label>
+            <input id="visit_order" name="visit_order" type="number" min="1" step="1" placeholder="e.g., 1" />
+            <span class="help">Optional — controls display order for the night</span>
+          </div>
+        </div>
+        <div class="actions">
+          <button type="submit" class="primary">Add Address</button>
+          <button type="reset" class="secondary">Reset</button>
+        </div>
+      </form>
+    </div>
+  </body>
+  <script>
+    // Snowfall overlay
+    (function(){
+      const canvas = document.getElementById('snow-canvas');
+      if (!canvas) return;
+      const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (prefersReduced) { canvas.style.display = 'none'; return; }
+      const ctx = canvas.getContext('2d');
+      const dpr = window.devicePixelRatio || 1;
+      function resize(){ canvas.width = Math.floor(window.innerWidth * dpr); canvas.height = Math.floor(window.innerHeight * dpr); }
+      resize(); window.addEventListener('resize', resize);
+      const flakes = []; const targetCount = Math.min(140, Math.max(60, Math.floor((window.innerWidth * window.innerHeight) / 18000)));
+      function spawn(){ return { x: Math.random()*canvas.width, y: Math.random()*-canvas.height, r:(0.8+Math.random()*2.2)*dpr, vy:(0.4+Math.random()*1.1)*dpr, vx:(-0.4+Math.random()*0.8)*dpr, sway:Math.random()*Math.PI*2, swaySpeed:0.005+Math.random()*0.01, alpha:0.65+Math.random()*0.35 }; }
+      for (let i=0;i<targetCount;i++) flakes.push(spawn());
+      let last=0; function step(ts){ const dt=Math.min(32, ts-last||16); last=ts; ctx.clearRect(0,0,canvas.width,canvas.height); ctx.save(); ctx.fillStyle='rgba(255,255,255,0.95)';
+        for (let i=0;i<flakes.length;i++){ const f=flakes[i]; f.sway+=f.swaySpeed*dt; f.y+=f.vy*(dt/16); f.x+=(f.vx+Math.sin(f.sway)*0.6*dpr)*(dt/16); if (f.y-f.r>canvas.height){ flakes[i]=spawn(); flakes[i].y=-f.r; flakes[i].x=Math.random()*canvas.width; } if (f.x<-10*dpr) f.x=canvas.width+10*dpr; if (f.x>canvas.width+10*dpr) f.x=-10*dpr; ctx.globalAlpha=f.alpha; ctx.beginPath(); ctx.arc(f.x,f.y,f.r,0,Math.PI*2); ctx.fill(); }
+        ctx.restore(); requestAnimationFrame(step); }
+      requestAnimationFrame(step);
+    })();
+  </script>
+</html>

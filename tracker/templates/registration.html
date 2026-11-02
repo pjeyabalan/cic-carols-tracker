@@ -1,0 +1,381 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Christmas Carols Registration</title>
+    <link rel="icon" type="image/png" href="{{ url_for('favicon') }}" />
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Great+Vibes&family=Quicksand:wght@400;500;700&display=swap');
+      :root {
+        font-family: 'Quicksand', 'Inter', system-ui, -apple-system, sans-serif;
+        color: #0b0b1a;
+        background: #0a1f1a;
+      }
+      *, *::before, *::after { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background-image:
+          radial-gradient(circle at 10% 5%, rgba(255,255,255,0.08) 2px, transparent 3px),
+          radial-gradient(circle at 80% 20%, rgba(255,255,255,0.08) 2px, transparent 3px),
+          radial-gradient(circle at 30% 70%, rgba(255,255,255,0.1) 2px, transparent 3px),
+          linear-gradient(180deg, #0d2f25 0%, #061a16 60%, #061218 100%);
+        background-size: auto, auto, auto, cover;
+        min-height: 100vh;
+      }
+      header { text-align: center; padding: 1.8rem 1rem 1rem; position: relative; z-index: 4; }
+      .header-actions { position: absolute; top: 1rem; right: 1rem; display: flex; gap: 0.75rem; }
+      .hero-link { color: #f8fafc; font-weight: 700; text-decoration: none; letter-spacing: 0.16em; text-transform: uppercase; font-size: 0.75rem; }
+      header h1 {
+        margin: 0;
+        font-family: 'Great Vibes', cursive;
+        font-size: clamp(2.3rem, 6vw, 3.5rem);
+        line-height: 1.1;
+        background: linear-gradient(120deg, #facc15, #ef4444 50%, #22c55e);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+        text-shadow: 0 2px 10px rgba(250, 204, 21, 0.25);
+      }
+      header p.subtitle {
+        margin: 0.45rem auto 0;
+        max-width: 620px;
+        color: #e2e8f0;
+        font-size: 0.98rem;
+      }
+      .shell { max-width: 920px; margin: 0 auto; padding: 0.5rem 1rem 2.6rem; position: relative; z-index: 4; }
+      .panel {
+        background: rgba(255, 255, 255, 0.97);
+        border-radius: 1.6rem;
+        padding: 1.6rem;
+        box-shadow: 0 30px 80px rgba(8, 18, 16, 0.35);
+        border: 2px solid rgba(250, 204, 21, 0.35);
+        position: relative;
+        overflow: hidden;
+      }
+      .panel::before, .panel::after {
+        content: '';
+        position: absolute;
+        width: 120px;
+        height: 120px;
+        border-radius: 50%;
+        filter: blur(24px);
+        opacity: 0.22;
+        pointer-events: none;
+      }
+      .panel::before { background: #ef4444; top: -30px; left: -30px; }
+      .panel::after { background: #22c55e; bottom: -30px; right: -30px; }
+      form {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 1rem;
+        position: relative;
+        z-index: 1;
+      }
+      .full { grid-column: 1 / -1; }
+      label {
+        font-size: 0.95rem;
+        color: #0b0b1a;
+        font-family: 'Playfair Display', serif;
+        letter-spacing: 0.02em;
+        font-weight: 700;
+        display: block;
+        margin-bottom: 0.45rem;
+      }
+      input, textarea {
+        width: 100%;
+        display: block;
+        padding: 0.8rem 0.95rem;
+        border-radius: 0.9rem;
+        border: 2px solid rgba(15, 23, 42, 0.18);
+        font-size: 16px;
+        font-family: inherit;
+        background: #f9fafb;
+        color: #0b0b1a;
+        transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+      }
+      textarea { min-height: 88px; resize: vertical; }
+      input:focus, textarea:focus {
+        outline: none;
+        border-color: #ef4444;
+        box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.18);
+        background: #fff;
+      }
+      .req { color: #ef4444; margin-left: 0.2rem; font-weight: 900; }
+      .actions { margin-top: 0.5rem; display: flex; gap: 1rem; flex-wrap: wrap; align-items: center; }
+      button[type="submit"] {
+        border: none;
+        border-radius: 999px;
+        padding: 0.85rem 1.5rem;
+        background: linear-gradient(135deg, #ef4444, #22c55e);
+        color: #fff;
+        font-weight: 800;
+        font-size: 1rem;
+        cursor: pointer;
+        box-shadow: 0 8px 20px rgba(239, 68, 68, 0.25);
+        letter-spacing: 0.04em;
+      }
+      button[type="submit"]:hover { filter: brightness(1.05); box-shadow: 0 10px 26px rgba(34, 197, 94, 0.28); }
+      .note { margin-top: 0.3rem; font-size: 0.85rem; color: #475569; }
+      .alert { padding: 0.8rem 1rem; border-radius: 0.75rem; margin-bottom: 1rem; font-weight: 600; }
+      .alert.success { background: #ecfdf5; color: #065f46; border: 1px solid #10b981; }
+      .alert.error { background: #fef2f2; color: #991b1b; border: 1px solid #ef4444; }
+      @media (min-width: 640px) {
+        form { grid-template-columns: 1fr 1fr; }
+      }
+      @media (min-width: 1024px) {
+        form { grid-template-columns: repeat(12, 1fr); }
+        .col-6 { grid-column: span 6; }
+        .col-5 { grid-column: span 5; }
+        .col-4 { grid-column: span 4; }
+        .col-3 { grid-column: span 3; }
+        .full { grid-column: 1 / -1; }
+      }
+      #snow-canvas {
+        position: fixed;
+        inset: 0;
+        width: 100vw;
+        height: 100vh;
+        z-index: 3;
+        pointer-events: none;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="snow-canvas" aria-hidden="true"></canvas>
+    <header>
+      <div class="header-actions">
+        <a href="{{ url_for('home') }}" class="hero-link">Home</a>
+        <a href="{{ url_for('schedule') }}" class="hero-link">Schedule</a>
+      </div>
+      <h1>Christmas Carols Registration</h1>
+      <p class="subtitle">Invite the CIC Carols team to visit your home this Christmas season — share your address and prayer requests below.</p>
+    </header>
+    <section class="shell">
+      <div class="panel">
+        {% if message %}
+          <div class="alert success">{{ message }}</div>
+        {% elif error %}
+          <div class="alert error">{{ error }}</div>
+        {% endif %}
+        <form method="post" action="{{ url_for('registration') }}">
+          <div class="col-6">
+            <label for="first_name">First Name <span class="req" aria-hidden="true">*</span></label>
+            <input id="first_name" name="first_name" type="text" autocomplete="given-name" required />
+          </div>
+          <div class="col-6">
+            <label for="last_name">Last Name</label>
+            <input id="last_name" name="last_name" type="text" autocomplete="family-name" />
+          </div>
+
+          <div class="full">
+            <label for="address">Street Address <span class="req" aria-hidden="true">*</span></label>
+            <input id="address" name="address" type="text" autocomplete="street-address" placeholder="e.g., 1234 Maple Ave, Apt 2B" required />
+          </div>
+
+          <div class="col-5">
+            <label for="city">City <span class="req" aria-hidden="true">*</span></label>
+            <input id="city" name="city" type="text" list="chicago-cities" autocomplete="address-level2" placeholder="e.g., Buffalo Grove, Schaumburg" required />
+            <datalist id="chicago-cities"></datalist>
+          </div>
+          <div class="col-3">
+            <label for="state">State</label>
+            <input id="state" name="state" type="text" autocomplete="address-level1" value="{{ default_state or 'IL' }}" maxlength="2" />
+          </div>
+          <div class="col-4">
+            <label for="zipcode">Zipcode</label>
+            <input id="zipcode" name="zipcode" type="text" inputmode="numeric" autocomplete="postal-code" placeholder="e.g., 60089" maxlength="10" />
+          </div>
+
+          <div class="col-6">
+            <label for="phone">Phone Number <span class="req" aria-hidden="true">*</span></label>
+            <input id="phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="(312) 555-1234" maxlength="18" required />
+            <div class="note">Used to text/call you when our Carols team is on the way.</div>
+          </div>
+          <div class="col-6">
+            <label for="email">Email</label>
+            <input id="email" name="email" type="email" autocomplete="email" placeholder="name@gmail.com (optional)" />
+            <div id="email-suggestions" class="note" style="display:none; margin-top:0.25rem;"></div>
+          </div>
+
+          <div class="col-6">
+            <label for="family_members">Family Members</label>
+            <input id="family_members" name="family_members" type="text" placeholder="Optional — comma-separated names" />
+          </div>
+          <div class="col-6">
+            <label for="referral">Invited by</label>
+            <input id="referral" name="referral" type="text" placeholder="Optional — friend or church member name" />
+          </div>
+
+          <div class="full">
+            <label for="prayer_request">Prayer Request</label>
+            <textarea id="prayer_request" name="prayer_request" placeholder="Optional — share how our Carols team can pray for your family"></textarea>
+          </div>
+
+          <div class="actions full">
+            <button type="submit">Register Home for Carols</button>
+          </div>
+        </form>
+      </div>
+    </section>
+    <script>
+      // Email domain autocomplete suggestions when '@' is typed
+      (function(){
+        const input = document.getElementById('email');
+        const box = document.getElementById('email-suggestions');
+        if (!input || !box) return;
+        const DOMAINS = ['gmail.com','yahoo.com','outlook.com','icloud.com','hotmail.com'];
+        function render(list){
+          if (!list || !list.length) { box.style.display='none'; box.innerHTML=''; return; }
+          box.style.display='block';
+          box.innerHTML = '<span style="color:#64748b; margin-right:0.4rem;">Suggestions:</span>' + list.map(v => `<button type="button" data-email="${v}" style="margin:0 0.25rem 0.25rem 0; border:1px solid rgba(15,23,42,0.2); background:#fff; color:#0b0b1a; border-radius:999px; padding:0.15rem 0.5rem; font-weight:700; cursor:pointer;">${v}</button>`).join('');
+          box.querySelectorAll('button[data-email]').forEach(btn => {
+            btn.addEventListener('click', () => { input.value = btn.getAttribute('data-email') || input.value; box.style.display='none'; });
+          });
+        }
+        input.addEventListener('input', () => {
+          const v = (input.value || '').trim();
+          const at = v.indexOf('@');
+          if (at < 0) return render([]);
+          const local = v.slice(0, at);
+          const domPart = v.slice(at+1).toLowerCase();
+          if (!local) return render([]);
+          const candidates = DOMAINS.filter(d => d.startsWith(domPart)).map(d => `${local}@${d}`);
+          render(candidates);
+        });
+        input.addEventListener('blur', () => { setTimeout(()=>{ box.style.display='none'; }, 200); });
+      })();
+    </script>
+    <script>
+      // Chicagoland suburb autocomplete + Zipcode auto-fill
+      (function(){
+        const ZIP_BY_CITY = {
+          "Chicago":"60601","Aurora":"60505","Naperville":"60540","Joliet":"60431","Elgin":"60120","Waukegan":"60085","Cicero":"60804","Arlington Heights":"60004","Evanston":"60201","Schaumburg":"60193","Bolingbrook":"60440","Palatine":"60067","Skokie":"60076","Des Plaines":"60016","Orland Park":"60462","Tinley Park":"60477","Oak Lawn":"60453","Berwyn":"60402","Mount Prospect":"60056","Wheaton":"60187","Hoffman Estates":"60169","Oak Park":"60302","Downers Grove":"60515","Glenview":"60025","Elmhurst":"60126","Lombard":"60148","Buffalo Grove":"60089","Hawthorn Woods":"60047","Lake Zurich":"60047","Long Grove":"60047","Kildeer":"60047","Carol Stream":"60188","Addison":"60101","Park Ridge":"60068","Northbrook":"60062","Niles":"60714","Wilmette":"60091","Winnetka":"60093","Glencoe":"60022","River Forest":"60305","River Grove":"60171","Melrose Park":"60160","Franklin Park":"60131","Hillside":"60162","Maywood":"60153","Bellwood":"60104","Westchester":"60154","La Grange":"60525","La Grange Park":"60526","Western Springs":"60558","Brookfield":"60513","Lyons":"60534","Riverside":"60546","Summit":"60501","Bridgeview":"60455","Bedford Park":"60638","Evergreen Park":"60805","Blue Island":"60406","Harvey":"60426","Homewood":"60430","Flossmoor":"60422","Country Club Hills":"60478","Matteson":"60443","Richton Park":"60471","Park Forest":"60466","Chicago Heights":"60411","South Holland":"60473","Dolton":"60419","Lansing":"60438","Crestwood":"60418","Alsip":"60803","Midlothian":"60445","Oak Forest":"60452","Orland Hills":"60487","Lemont":"60439","Lockport":"60441","Romeoville":"60446","Plainfield":"60544","New Lenox":"60451","Mokena":"60448","Frankfort":"60423","Palos Hills":"60465","Palos Heights":"60463","Palos Park":"60464","Burr Ridge":"60527","Darien":"60561","Westmont":"60559","Willowbrook":"60527","Clarendon Hills":"60514","Hinsdale":"60521","Oak Brook":"60523","Glen Ellyn":"60137","Warrenville":"60555","Winfield":"60190","Lisle":"60532","Geneva":"60134","St. Charles":"60174","Batavia":"60510","North Aurora":"60542","South Elgin":"60177","Bartlett":"60103","Streamwood":"60107","Hanover Park":"60133","Glendale Heights":"60139","Bloomingdale":"60108","Roselle":"60172","Itasca":"60143","Wood Dale":"60191","Elk Grove Village":"60007","Rolling Meadows":"60008","Prospect Heights":"60070","Wheeling":"60090","Lake Forest":"60045","Lake Bluff":"60044","Highland Park":"60035","Highwood":"60040","Deerfield":"60015","Lincolnshire":"60069","Vernon Hills":"60061","Libertyville":"60048","Mundelein":"60060","Gurnee":"60031","Grayslake":"60030","Round Lake":"60073","Wauconda":"60084","Fox Lake":"60020","Antioch":"60002","Zion":"60099","North Chicago":"60064"
+        };
+        const datalist = document.getElementById('chicago-cities');
+        if (datalist) {
+          Object.keys(ZIP_BY_CITY).sort().forEach(city => {
+            const opt = document.createElement('option');
+            opt.value = city;
+            datalist.appendChild(opt);
+          });
+        }
+        const cityEl = document.getElementById('city');
+        const zipEl = document.getElementById('zipcode');
+        if (!cityEl || !zipEl) return;
+        const CITY_LOWER = {};
+        Object.keys(ZIP_BY_CITY).forEach(k => { CITY_LOWER[k.toLowerCase()] = ZIP_BY_CITY[k]; });
+        let lastAuto = '';
+        const applyZip = () => {
+          const city = (cityEl.value || '').trim().toLowerCase();
+          const z = CITY_LOWER[city];
+          if (!z) return;
+          if (!zipEl.value || zipEl.value === lastAuto) {
+            zipEl.value = z;
+            lastAuto = z;
+          }
+        };
+        cityEl.addEventListener('change', applyZip);
+        cityEl.addEventListener('input', applyZip);
+      })();
+    </script>
+    <script>
+      // Auto-format US phone numbers as the user types (and on blur/change/submit)
+      (function(){
+        const el = document.getElementById('phone');
+        const form = document.querySelector("form[action='{{ url_for('registration') }}']") || document.querySelector('form');
+        if (!el) return;
+        const digitsOnly = (s) => (s || '').replace(/\D+/g, '');
+        function formatUS(d){
+          if (!d) return '';
+          let cc = '';
+          if (d.length > 10 && d[0] === '1') { cc = '+1 '; d = d.slice(1); }
+          d = d.slice(0, 10);
+          if (d.length <= 3) return cc + d;
+          if (d.length <= 6) return `${cc}(${d.slice(0,3)}) ${d.slice(3)}`;
+          return `${cc}(${d.slice(0,3)}) ${d.slice(3,6)}-${d.slice(6)}`;
+        }
+        function applyFormat(){
+          setTimeout(() => {
+            const d = digitsOnly(el.value);
+            el.value = formatUS(d);
+          }, 0);
+        }
+        el.addEventListener('input', applyFormat, { passive: true });
+        el.addEventListener('change', applyFormat, { passive: true });
+        el.addEventListener('keyup', applyFormat, { passive: true });
+        el.addEventListener('paste', applyFormat);
+        el.addEventListener('blur', applyFormat);
+        if (form) {
+          form.addEventListener('submit', applyFormat);
+        }
+        applyFormat();
+      })();
+    </script>
+    <script>
+      // Gentle snowfall using canvas; respects prefers-reduced-motion
+      (function(){
+        const canvas = document.getElementById('snow-canvas');
+        if (!canvas) return;
+        const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        if (prefersReduced) { canvas.style.display = 'none'; return; }
+
+        const ctx = canvas.getContext('2d');
+        const scale = window.devicePixelRatio || 1;
+        let width = canvas.width = window.innerWidth * scale;
+        let height = canvas.height = window.innerHeight * scale;
+
+        const flakes = [];
+        const targetCount = Math.min(160, Math.max(60, Math.floor((window.innerWidth * window.innerHeight) / 15000)));
+        function spawnFlake() {
+          return {
+            x: Math.random() * width,
+            y: Math.random() * -height,
+            r: (0.8 + Math.random() * 2.2) * scale,
+            vy: (0.4 + Math.random() * 1.1) * scale,
+            vx: (-0.4 + Math.random() * 0.8) * scale,
+            sway: Math.random() * 2 * Math.PI,
+            swaySpeed: 0.005 + Math.random() * 0.01,
+            alpha: 0.65 + Math.random() * 0.35,
+          };
+        }
+        for (let i = 0; i < targetCount; i++) flakes.push(spawnFlake());
+
+        let lastTs = 0;
+        function step(ts) {
+          const dt = Math.min(32, ts - lastTs || 16);
+          lastTs = ts;
+          ctx.clearRect(0, 0, width, height);
+          ctx.save();
+          ctx.fillStyle = 'rgba(255,255,255,0.95)';
+          for (let i = 0; i < flakes.length; i++) {
+            const f = flakes[i];
+            f.sway += f.swaySpeed * dt;
+            f.y += f.vy * (dt / 16);
+            f.x += (f.vx + Math.sin(f.sway) * 0.6 * scale) * (dt / 16);
+            if (f.y - f.r > height) {
+              flakes[i] = spawnFlake();
+              flakes[i].y = -f.r;
+              flakes[i].x = Math.random() * width;
+            }
+            if (f.x < -10 * scale) f.x = width + 10 * scale;
+            if (f.x > width + 10 * scale) f.x = -10 * scale;
+
+            ctx.globalAlpha = f.alpha;
+            ctx.beginPath();
+            ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          ctx.restore();
+          requestAnimationFrame(step);
+        }
+        function resize(){
+          width = canvas.width = window.innerWidth * scale;
+          height = canvas.height = window.innerHeight * scale;
+        }
+        window.addEventListener('resize', resize);
+        requestAnimationFrame(step);
+      })();
+    </script>
+  </body>
+</html>

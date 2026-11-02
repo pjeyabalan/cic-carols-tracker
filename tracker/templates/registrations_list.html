@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Registrations</title>
+    <link rel="icon" type="image/png" href="{{ url_for('favicon') }}" />
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Great+Vibes&family=Quicksand:wght@400;500;700&display=swap');
+      :root { font-family: 'Quicksand', system-ui, -apple-system, sans-serif; color: #e2e8f0; }
+      body { margin: 0; background: #0a1f1a; background-image: radial-gradient(circle at 10% 5%, rgba(255,255,255,0.08) 2px, transparent 3px), radial-gradient(circle at 80% 20%, rgba(255,255,255,0.08) 2px, transparent 3px), radial-gradient(circle at 30% 70%, rgba(255,255,255,0.1) 2px, transparent 3px), linear-gradient(180deg, #0d2f25 0%, #061a16 60%, #061218 100%); background-size: auto, auto, auto, cover; min-height: 100vh; }
+      #snow-canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 2; pointer-events: none; }
+      main { position: relative; z-index: 3; }
+      header { text-align:center; padding: 1.6rem 1rem 0.8rem; position: relative; z-index: 3; }
+      .header-actions { position:absolute; top: 0.8rem; right:1rem; display:flex; gap:0.75rem; }
+      .hero-link { color:#f8fafc; font-weight:700; text-decoration:none; letter-spacing:0.16em; text-transform:uppercase; font-size:0.75rem; }
+      h1 { margin:0; font-family:'Great Vibes', cursive; font-size: clamp(2.2rem, 5.5vw, 3.2rem); line-height:1.1; background: linear-gradient(120deg, #facc15, #ef4444 50%, #22c55e); -webkit-background-clip:text; background-clip:text; color:transparent; text-shadow: 0 2px 10px rgba(250, 204, 21, 0.25); }
+      .shell { max-width: 1080px; margin: 0 auto; padding: 0 1rem 2.4rem; }
+      .stats-row { display:flex; gap:0.6rem; flex-wrap:wrap; margin-top:0.5rem; }
+      .stat-pill { background: rgba(255,255,255,0.1); border: 1px solid rgba(250, 204, 21, 0.35); border-radius: 999px; padding: 0.35rem 0.8rem; font-size: 0.88rem; color: #f8fafc; font-weight: 700; }
+      .actions { display:flex; gap:0.6rem; align-items:center; flex-wrap:wrap; margin-top:0.8rem; }
+      .btn {
+        display:inline-flex; align-items:center; gap:0.35rem;
+        border:none; border-radius:999px; padding:0.55rem 0.95rem;
+        font-weight:800; cursor:pointer; text-decoration:none;
+        font-size:0.9rem; line-height:1.1;
+        -webkit-appearance:none; appearance:none;
+      }
+      .btn:hover { filter: brightness(1.05); }
+      .btn.primary { color:#fff; background: linear-gradient(135deg, #ef4444, #22c55e); box-shadow: 0 8px 18px rgba(239, 68, 68, 0.25); }
+      .btn.secondary { color:#0b0b1a; background:#fff; border:1px solid rgba(250, 204, 21, 0.45); }
+      .btn.danger { color:#991b1b; background:#fef2f2; border:1px solid #fecaca; }
+      .search-input { flex: 1; min-width: 210px; padding: 0.55rem 0.9rem; border-radius: 999px; border: 1px solid rgba(250, 204, 21, 0.4); background: rgba(255,255,255,0.96); color: #0b0b1a; font-size: 0.92rem; }
+      .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:0.9rem; margin-top:1rem; }
+      .card { background: rgba(255,255,255,0.96); border: 2px solid rgba(250, 204, 21, 0.25); border-radius:1rem; padding:1rem; box-shadow:0 20px 60px rgba(8,18,16,0.35); color:#0b0b1a; display:flex; flex-direction:column; gap:0.3rem; }
+      .card h2 { margin:0; font-size:1.15rem; font-family:'Playfair Display', serif; }
+      .card p { margin:0.15rem 0 0; font-size:0.9rem; color:#334155; }
+      .badge { display:inline-block; padding:0.2rem 0.55rem; border-radius:999px; font-size:0.75rem; font-weight:800; white-space:nowrap; }
+      .badge.scheduled { background:#dcfce7; color:#166534; border:1px solid #86efac; }
+      .badge.unscheduled { background:#fef3c7; color:#92400e; border:1px solid #fcd34d; }
+      .card-footer { margin-top: auto; padding-top: 0.65rem; display:flex; gap:0.5rem; flex-wrap:wrap; }
+    </style>
+  </head>
+  <body>
+    <canvas id="snow-canvas" aria-hidden="true"></canvas>
+    <header>
+      <div class="header-actions">
+        <a href="{{ url_for('home') }}" class="hero-link">Home</a>
+        <a href="{{ url_for('schedule') }}" class="hero-link">Schedule</a>
+        <a href="{{ url_for('registration') }}" class="hero-link">Register</a>
+      </div>
+      <h1>Submitted Registrations</h1>
+    </header>
+    <main>
+      <section class="shell">
+        <div class="stats-row">
+          <span class="stat-pill">Total: {{ total_count }}</span>
+          <span class="stat-pill">CIC Carols: {{ cic_count }}</span>
+          {% if unscheduled_count %}
+          <span class="stat-pill">Unscheduled: {{ unscheduled_count }}</span>
+          {% endif %}
+          {% if newhope_count %}
+          <span class="stat-pill">Newhope: {{ newhope_count }}</span>
+          {% endif %}
+        </div>
+        <div class="actions">
+          <input type="search" id="reg-search" class="search-input" placeholder="Search name, city, phone, or email..." />
+          <a class="btn primary" href="{{ url_for('registrations_export') }}" download>Export Registrations CSV</a>
+          <a class="btn secondary" href="{{ url_for('backup_export_csv') }}" download>Full DB Backup CSV</a>
+          <button type="button" class="btn secondary" id="copy-emails">Copy emails</button>
+        </div>
+        <div class="grid" id="reg-grid">
+          {% for r in registrations %}
+          <article class="card" data-id="{{ r.id or '' }}">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:0.5rem;">
+              <h2>{{ r.name }}</h2>
+              {% if r.date %}
+                <span class="badge scheduled">{{ r.date }}</span>
+              {% else %}
+                <span class="badge unscheduled">Unscheduled</span>
+              {% endif %}
+            </div>
+            {% if r.address %}
+              <p style="font-weight:700; color:#0b0b1a;">
+                <a href="https://www.google.com/maps/search/?api=1&query={{ (r.address ~ ' ' ~ (r.zipcode or '')) | urlencode }}" target="_blank" rel="noopener" style="color:#1d4ed8; text-decoration:underline;">
+                  {{ r.address }}{% if r.zipcode %}, {{ r.zipcode }}{% endif %}
+                </a>
+              </p>
+            {% endif %}
+            {% if r.contact_number %}<p><strong>Phone:</strong> {{ r.contact_number }}</p>{% endif %}
+            {% if r.email_id %}<p class="email-line"><strong>Email:</strong> {{ r.email_id }}</p>{% endif %}
+            {% if r.family_members %}<p><strong>Family:</strong> {{ r.family_members | join(', ') }}</p>{% endif %}
+            {% if r.prayer_request %}<p><strong>Prayer:</strong> {{ r.prayer_request }}</p>{% endif %}
+            {% if r.referral %}<p style="font-size:0.82rem; color:#64748b;"><strong>Invited by:</strong> {{ r.referral }}</p>{% endif %}
+            {% if using_postgres and r.id %}
+            <div class="card-footer">
+              <a class="btn secondary" href="{{ url_for('edit_by_id', item_id=r.id) }}">
+                {{ 'Edit Schedule' if r.date else 'Assign Date / Edit' }}
+              </a>
+              <button type="button" class="btn danger delete-btn" data-id="{{ r.id }}">Delete</button>
+            </div>
+            {% endif %}
+          </article>
+          {% endfor %}
+          {% if registrations|length == 0 %}
+          <p style="grid-column:1/-1; color:#cbd5e1;">No registrations submitted yet. Share <a href="{{ url_for('registration') }}" style="color:#facc15;">/registration</a> with families to collect addresses!</p>
+          {% endif %}
+        </div>
+      </section>
+    </main>
+    <script>
+      // Client-side filter + Delete registration handler
+      document.addEventListener('DOMContentLoaded', function() {
+        const searchInput = document.getElementById('reg-search');
+        if (searchInput) {
+          searchInput.addEventListener('input', function() {
+            const q = (searchInput.value || '').trim().toLowerCase();
+            document.querySelectorAll('#reg-grid .card').forEach(function(card) {
+              const text = (card.textContent || '').toLowerCase();
+              card.style.display = (!q || text.includes(q)) ? '' : 'none';
+            });
+          });
+        }
+
+        document.querySelectorAll('.delete-btn').forEach(function(btn) {
+          btn.addEventListener('click', function() {
+            const regId = btn.getAttribute('data-id');
+            if (!regId) return;
+            if (!confirm('Are you sure you want to delete this registration?')) return;
+            fetch(`/registrations/delete/${regId}`, { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+              .then(resp => resp.json())
+              .then(data => {
+                if (data.success) {
+                  const card = btn.closest('.card');
+                  if (card) card.remove();
+                } else {
+                  alert('Delete failed: ' + (data.error || 'Unknown error'));
+                }
+              })
+              .catch(() => alert('Delete failed.'));
+          });
+        });
+      });
+    </script>
+    <script>
+      // Snowfall overlay
+      (function(){
+        const canvas = document.getElementById('snow-canvas');
+        if (!canvas) return;
+        const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        if (prefersReduced) { canvas.style.display = 'none'; return; }
+        const ctx = canvas.getContext('2d');
+        const dpr = window.devicePixelRatio || 1;
+        function resize(){ canvas.width = Math.floor(window.innerWidth * dpr); canvas.height = Math.floor(window.innerHeight * dpr); }
+        resize(); window.addEventListener('resize', resize);
+        const flakes = []; const targetCount = Math.min(160, Math.max(60, Math.floor((window.innerWidth * window.innerHeight) / 15000)));
+        function spawn(){ return { x: Math.random()*canvas.width, y: Math.random()*-canvas.height, r:(0.8+Math.random()*2.2)*dpr, vy:(0.4+Math.random()*1.1)*dpr, vx:(-0.4+Math.random()*0.8)*dpr, sway:Math.random()*Math.PI*2, swaySpeed:0.005+Math.random()*0.01, alpha:0.65+Math.random()*0.35 }; }
+        for (let i=0;i<targetCount;i++) flakes.push(spawn());
+        let last=0; function step(ts){ const dt=Math.min(32, ts-last||16); last=ts; ctx.clearRect(0,0,canvas.width,canvas.height); ctx.save(); ctx.fillStyle='rgba(255,255,255,0.95)';
+          for (let i=0;i<flakes.length;i++){ const f=flakes[i]; f.sway+=f.swaySpeed*dt; f.y+=f.vy*(dt/16); f.x+=(f.vx+Math.sin(f.sway)*0.6*dpr)*(dt/16); if (f.y-f.r>canvas.height){ flakes[i]=spawn(); flakes[i].y=-f.r; flakes[i].x=Math.random()*canvas.width; } if (f.x<-10*dpr) f.x=canvas.width+10*dpr; if (f.x>canvas.width+10*dpr) f.x=-10*dpr; ctx.globalAlpha=f.alpha; ctx.beginPath(); ctx.arc(f.x,f.y,f.r,0,Math.PI*2); ctx.fill(); }
+          ctx.restore(); requestAnimationFrame(step); }
+        requestAnimationFrame(step);
+      })();
+    </script>
+    <script>
+      // Copy all visible emails (comma-separated)
+      (function(){
+        const btn = document.getElementById('copy-emails');
+        if (!btn) return;
+        btn.addEventListener('click', async () => {
+          const items = Array.from(document.querySelectorAll('#reg-grid .card'))
+            .filter(card => card.style.display !== 'none')
+            .map(card => card.querySelector('.email-line'))
+            .filter(Boolean)
+            .map(el => (el.textContent || '').trim().replace(/^Email:\s*/i, ''))
+            .filter(v => v && v !== '\u00A0');
+          const seen = new Set();
+          const emails = [];
+          for (const v of items) {
+            const k = v.toLowerCase();
+            if (!seen.has(k)) { seen.add(k); emails.push(v); }
+          }
+          if (!emails.length) { alert('No emails found.'); return; }
+          const text = emails.join(', ');
+          try {
+            await navigator.clipboard.writeText(text);
+            alert(`Copied ${emails.length} email(s) to clipboard.`);
+          } catch (e) {
+            window.prompt('Copy emails:', text);
+          }
+        });
+      })();
+    </script>
+  </body>
+</html>

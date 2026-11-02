@@ -1,0 +1,804 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CIC Carols Tracker</title>
+  <link rel="icon" type="image/png" href="{{ url_for('favicon') }}" />
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Great+Vibes&family=Quicksand:wght@400;500;700&display=swap');
+      :root { font-family: 'Quicksand', 'Inter', system-ui, -apple-system, sans-serif; color: #e2e8f0; background: #0a1f1a; }
+      * {
+        box-sizing: border-box;
+      }
+      body { margin: 0; font-family: 'Quicksand', 'Inter', system-ui, -apple-system, sans-serif; background: #0a1f1a; background-image: radial-gradient(circle at 10% 5%, rgba(255,255,255,0.08) 2px, transparent 3px), radial-gradient(circle at 80% 20%, rgba(255,255,255,0.08) 2px, transparent 3px), radial-gradient(circle at 30% 70%, rgba(255,255,255,0.1) 2px, transparent 3px), linear-gradient(180deg, #0d2f25 0%, #061a16 60%, #061218 100%); min-height: 100vh; }
+      #snow-canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 2; pointer-events: none; }
+      main, header { position: relative; z-index: 3; }
+      header {
+        text-align: center;
+        padding: 2.2rem 1rem 1rem;
+        color: #f8fafc;
+        position: relative;
+        overflow: visible;
+      }
+      .hero-link {
+        position: absolute;
+        top: 0.8rem;
+        right: 1rem;
+        color: #f8fafc;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.2em;
+        text-decoration: none;
+        font-size: 0.75rem;
+        background: rgba(0,0,0,0.25);
+        padding: 0.35rem 0.75rem;
+        border-radius: 999px;
+        border: 1px solid rgba(250, 204, 21, 0.35);
+      }
+      .header-actions { position: absolute; top: 0.8rem; right: 1rem; display:flex; gap:0.5rem; }
+      .action-link { display:inline-flex; align-items:center; gap:0.35rem; color:#f8fafc; text-decoration:none; font-weight:700; background: rgba(0,0,0,0.25); border: 1px solid rgba(250,204,21,0.35); padding: 0.3rem 0.6rem; border-radius: 999px; font-size: 0.75rem; }
+      .action-link:hover { background: rgba(0,0,0,0.4); }
+      .action-link svg { width: 16px; height: 16px; fill: currentColor; }
+      header::before,
+      header::after {
+        content: '';
+        position: absolute;
+        inset: auto;
+        width: 220px;
+        height: 220px;
+        border-radius: 50%;
+        filter: blur(18px);
+        opacity: 0.45;
+        z-index: -1;
+      }
+      header::before {
+        background: radial-gradient(circle, rgba(244, 114, 182, 0.65), transparent 60%);
+        top: -80px;
+        left: 20px;
+      }
+      header::after {
+        background: radial-gradient(circle, rgba(59, 130, 246, 0.65), transparent 65%);
+        top: -90px;
+        right: 12px;
+      }
+      header h1 {
+        margin: 0;
+        font-family: 'Great Vibes', cursive;
+        font-size: clamp(2.4rem, 6vw, 3.6rem);
+        line-height: 1.1;
+        background: linear-gradient(120deg, #facc15, #ef4444 50%, #22c55e);
+        -webkit-background-clip: text; background-clip: text; color: transparent;
+        text-shadow: 0 2px 10px rgba(250, 204, 21, 0.25);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.8rem;
+      }
+      .title-note {
+        font-size: 1.7rem;
+        color: #fef08a;
+        font-weight: 700;
+        text-shadow: 0 2px 12px rgba(15, 23, 42, 0.4);
+      }
+      .header-ornaments {
+        position: absolute;
+        top: 0;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 0.6rem;
+        pointer-events: none;
+      }
+      .instrument {
+        width: 36px;
+        height: 36px;
+        background-size: cover;
+        background-repeat: no-repeat;
+        animation: floatInstrument 4s ease-in-out infinite;
+      }
+      .instrument:nth-child(2) {
+        animation-delay: 0.4s;
+      }
+      .instrument:nth-child(3) {
+        animation-delay: 0.8s;
+      }
+      .instrument.trumpet {
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath fill='%23fcd34d' d='M8 28h8v8H8z'/%3E%3Cpath fill='%23fee2e2' d='M18 24h26v16H18z'/%3E%3Cpath fill='%23f97316' d='M34 20h12v24H34z'/%3E%3Ccircle cx='52' cy='24' r='5' fill='%23fde68a'/%3E%3Ccircle cx='52' cy='40' r='5' fill='%23fde68a'/%3E%3Cpath fill='%23f59e0b' d='M44 12h8v40h-8z'/%3E%3C/svg%3E");
+      }
+      .instrument.violin {
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath fill='%23fbbf24' d='M10 30h12v12H10z'/%3E%3Cpath fill='%23c2410c' d='M18 22h24v20H18z'/%3E%3Ccircle cx='42' cy='26' r='4' fill='%23fecdd3'/%3E%3Ccircle cx='42' cy='38' r='4' fill='%23fecdd3'/%3E%3Cpath fill='%23dc2626' d='M36 8h10v40H36z'/%3E%3Cpath fill='%23fb923c' d='M18 44l14 14 12-12-14-14z'/%3E%3C/svg%3E");
+      }
+      .instrument.bell {
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath fill='%23f97316' d='M24 12h16v16H24z'/%3E%3Cpath fill='%23fde047' d='M18 26h28v14H18z'/%3E%3Ccircle cx='32' cy='46' r='6' fill='%23fb923c'/%3E%3Cpath fill='%23f87171' d='M22 40h20v10H22z'/%3E%3C/svg%3E");
+      }
+      @keyframes floatInstrument {
+        0% {
+          transform: translate3d(0, 0, 0);
+        }
+        50% {
+          transform: translate3d(0, -8px, 0) scale(1.05);
+        }
+        100% {
+          transform: translate3d(0, 0, 0);
+        }
+      }
+      main {
+        padding: 1.25rem 0.75rem 1.5rem;
+        display: flex;
+        justify-content: center;
+      }
+      .track-layout {
+        width: min(960px, 100%);
+        display: flex;
+        gap: 0;
+        justify-content: flex-start;
+        align-items: stretch;
+        flex-wrap: wrap;
+      }
+      .cards-column {
+        flex: 1 1 min(60%, 420px);
+        min-width: 240px;
+        display: flex;
+        flex-direction: column;
+        gap: 0.6rem;
+        margin-right: 0;
+      }
+      .house-wrapper {
+        position: relative;
+        display: flex;
+        align-items: flex-start;
+        justify-content: flex-end;
+        padding: 0 12px 0 0;
+      }
+      .house-card {
+        border-radius: 1.25rem;
+        border: 1px solid rgba(15, 23, 42, 0.18);
+        padding: 1rem 1.15rem;
+        background: rgba(255, 255, 255, 0.95);
+        box-shadow: 0 30px 60px rgba(15, 23, 42, 0.12);
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+        min-height: 140px;
+        align-items: flex-start;
+        text-align: left;
+        width: 100%;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+      }
+      .house-card.done {
+        background: #bbf7d0;
+        border-color: #22c55e50;
+      }
+      .house-card.current {
+        background: #fff7ed;
+        border-color: #fb923c33;
+      }
+      .house-card.pending {
+        background: #fef2f2;
+        border-color: #f8717133;
+      }
+      .house-name {
+        margin: 0;
+        font-size: 1.35rem;
+        font-weight: 700;
+        color: #0b0b1a;
+      }
+      .house-time {
+        margin: 0;
+        font-size: 0.95rem;
+        color: #0b0b1a;
+      }
+      .status-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.3rem 0.75rem;
+        border-radius: 999px;
+        font-size: 0.78rem;
+        font-weight: 600;
+      }
+      .status-chip.status-done {
+        border: 1px solid rgba(22, 163, 74, 0.3);
+        color: #15803d;
+      }
+      .status-chip.status-current {
+        border: 1px solid rgba(251, 191, 36, 0.5);
+        color: #c2410c;
+      }
+      .status-chip.status-pending {
+        border: 1px solid rgba(239, 68, 68, 0.35);
+        color: #b91c1c;
+      }
+      details summary {
+        cursor: pointer;
+        font-weight: 600;
+        margin-bottom: 0.25rem;
+        color: #0b0b1a;
+      }
+      /* Ensure details content and general card text are dark for readability */
+      .house-card details p { color: #0b0b1a; }
+      .house-card p { color: #0b0b1a; }
+      .copy-btn {
+        border-radius: 999px;
+        border: 2px solid rgba(250, 204, 21, 0.25);
+        padding: 0.35rem 0.85rem;
+        background: linear-gradient(135deg, #ef4444, #22c55e);
+        font-size: 0.85rem;
+        color: #fff;
+        cursor: pointer;
+        align-self: flex-start;
+      }
+      /* Ensure normal links inside cards (like the address link) are dark for readability */
+      .house-card a:not(.copy-btn) { color: #0b0b1a !important; }
+      .road-column {
+        flex: 0 0 2cm;
+        max-width: 2cm;
+        background: transparent;
+        border-radius: 1.6rem;
+        padding: 0 0 0 2px;
+        color: #fff;
+        position: relative;
+        overflow: hidden;
+        min-height: 320px;
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+      }
+      .road-column h2 {
+        margin: 0 0 0.6rem;
+        font-size: 1.35rem;
+        letter-spacing: 0.04em;
+      }
+      .road-track {
+        position: relative;
+        width: min(2cm, 40px);
+        margin: 0.2rem auto;
+        flex: 1;
+        height: calc(100% - 0.9rem);
+      }
+      .road {
+        position: absolute;
+        inset: 0;
+        border-radius: 1rem;
+        margin: 0.5rem auto;
+        width: 100%;
+        height: 100%;
+        background: #0d1122;
+        z-index: 1;
+        box-shadow: inset 0 0 14px rgba(0, 0, 0, 0.4);
+        overflow: hidden;
+      }
+      .road::after {
+        content: '';
+        position: absolute;
+        top: 0.7rem;
+        bottom: 0.7rem;
+        left: 50%;
+        transform: translateX(-50%);
+        /* thicker, slightly off-white dashed vertical line */
+        border-left: 3px dashed rgba(255, 255, 255, 0.95);
+        width: 0;
+        z-index: 1;
+      }
+      .santa-chariot {
+        position: absolute;
+        left: 50%;
+        width: 94px;
+        height: 94px;
+        display: flex;
+        justify-content: center;
+        align-items: flex-end;
+        transform: translateX(-50%);
+        animation: floatChariot 2.4s ease-in-out infinite alternate;
+        z-index: 4;
+      }
+      .santa-chariot svg {
+        width: 98px;
+        height: 98px;
+        display: block;
+      }
+      .gift-layer {
+        position: absolute;
+        top: 28px;
+        left: 50%;
+        width: 0;
+        height: 0;
+        pointer-events: none;
+        overflow: visible;
+        transform: translateX(-50%);
+        z-index: 3;
+      }
+      .party-particle {
+        position: absolute;
+        top: 52%;
+        left: 50%;
+        pointer-events: none;
+        transform-origin: center bottom;
+      }
+      .gift {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 18px;
+        height: 18px;
+        border-radius: 5px;
+        background: var(--gift-color, #f97316);
+        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
+        animation: giftLaunch var(--duration, 3.6s) cubic-bezier(0.3, 0.85, 0.3, 1) infinite;
+        animation-delay: var(--delay, 0s);
+        transform: translate(-50%, -50%);
+      }
+      .gift::before,
+      .gift::after {
+        content: '';
+        position: absolute;
+        background: rgba(255, 255, 255, 0.75);
+        border-radius: 999px;
+      }
+      .gift::before {
+        width: 4px;
+        height: 100%;
+        top: 0;
+        left: 50%;
+        transform: translateX(-50%);
+      }
+      .gift::after {
+        width: 100%;
+        height: 4px;
+        left: 0;
+        top: 50%;
+        transform: translateY(-50%);
+      }
+      .cracker {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 6px;
+        height: 26px;
+        border-radius: 999px;
+        background: linear-gradient(180deg, #fef3c7 0%, #f59e0b 55%, #ef4444 100%);
+        box-shadow: 0 10px 22px rgba(0, 0, 0, 0.35);
+        animation: crackerBurst var(--duration, 2.8s) ease-in-out infinite;
+        animation-delay: var(--delay, 0s);
+        transform: translate(-50%, -40%);
+      }
+      .cracker::after {
+        content: '';
+        position: absolute;
+        bottom: 26px;
+        left: 50%;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(251, 191, 36, 0.9) 0%, rgba(249, 115, 22, 0) 70%);
+        transform: translateX(-50%) scale(0);
+        animation: sparkPop calc(var(--duration, 2.8s) * 0.45) ease-out infinite;
+        animation-delay: var(--delay, 0s);
+      }
+      @keyframes floatChariot {
+        to { transform: translateX(-50%) translateY(6px); }
+      }
+      @keyframes giftLaunch {
+        0% {
+          opacity: 0;
+          transform: translate(-50%, -42%) scale(0.4);
+        }
+        20% {
+          opacity: 1;
+        }
+        60% {
+          transform: translate(calc(-50% + var(--offset-x, 0px)), calc(var(--offset-y, -90px))) rotate(-8deg) scale(1);
+        }
+        100% {
+          opacity: 0;
+          transform: translate(calc(-50% + var(--offset-x, 0px)), calc(var(--offset-y, -170px))) rotate(8deg) scale(0.6);
+        }
+      }
+      @keyframes crackerBurst {
+        0% {
+          opacity: 0;
+          transform: translate(-50%, -32%) rotate(calc(var(--rotate, 0deg))) scaleY(0.4);
+        }
+        25% {
+          opacity: 1;
+        }
+        70% {
+          transform: translate(calc(-50% + var(--offset-x, 0px)), calc(var(--offset-y, -110px))) rotate(calc(var(--rotate, 0deg) + 8deg)) scaleY(1);
+        }
+        100% {
+          opacity: 0;
+          transform: translate(calc(-50% + var(--offset-x, 0px)), calc(var(--offset-y, -220px))) rotate(calc(var(--rotate, 0deg) - 6deg)) scaleY(0.8);
+        }
+      }
+      @keyframes sparkPop {
+        0% {
+          opacity: 0;
+          transform: translateX(-50%) scale(0);
+        }
+        40% {
+          opacity: 1;
+          transform: translateX(-50%) scale(1.3);
+        }
+        80% {
+          opacity: 0.5;
+        }
+        100% {
+          opacity: 0;
+          transform: translateX(-50%) scale(0);
+        }
+      }
+      @media (max-width: 960px) {
+        .track-layout {
+          justify-content: flex-start;
+          flex-wrap: nowrap;
+          overflow-x: hidden;
+          padding: 0 1rem 1rem;
+        }
+        .cards-column {
+          flex: 1 1 220px;
+        }
+        .road-column {
+          flex: 0 0 2cm;
+          min-height: 280px;
+        }
+        .road-track {
+          width: min(2cm, 36px);
+          height: calc(100% - 0.9rem);
+        }
+        .road {
+          margin: 0.5rem auto;
+        }
+        .santa-chariot {
+          width: 74px;
+          height: 74px;
+        }
+        .santa-chariot svg {
+          width: 78px;
+          height: 78px;
+        }
+      }
+      @media (max-width: 640px) {
+        .track-layout {
+          padding: 0 0.5rem 0.75rem;
+        }
+        .road-column {
+          flex: 0 0 2cm;
+          min-height: 240px;
+        }
+        .road-track {
+          width: min(2cm, 32px);
+          height: calc(100% - 0.8rem);
+        }
+        .road {
+          margin: 0.35rem auto;
+        }
+        .santa-chariot {
+          width: 66px;
+          height: 66px;
+        }
+        .santa-chariot svg {
+          width: 70px;
+          height: 70px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="snow-canvas" aria-hidden="true"></canvas>
+    <header>
+      <div class="header-actions">
+        <a href="{{ url_for('songs') }}" class="action-link" aria-label="Songs" title="Songs">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3v12.26A3 3 0 1 0 11 18V8h7V3H9z"></path></svg>
+          Songs
+        </a>
+        <a href="{{ url_for('schedule') }}" class="action-link" aria-label="Schedule" title="Schedule">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 2v2H5a2 2 0 0 0-2 2v2h18V6a2 2 0 0 0-2-2h-2V2h-2v2H9V2H7zm14 8H3v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V10zM5 14h4v4H5v-4zm6 0h4v4h-4v-4zm6 0h2v4h-2v-4z"></path></svg>
+          Schedule
+        </a>
+      </div>
+      <div class="header-ornaments" aria-hidden="true">
+        <span class="instrument trumpet"></span>
+        <span class="instrument violin"></span>
+        <span class="instrument bell"></span>
+      </div>
+      <h1>
+        <span class="title-note">♩</span>
+        CIC Carols Tracker
+        <span class="title-note">♪</span>
+      </h1>
+      <p style="margin:0.5rem 0 0; font-weight:700; color:#f8fafc;">
+        Visited (all days): {{ visited_total }} / {{ total_houses }}
+      </p>
+      <p style="margin:0.1rem 0 0; font-weight:700; color:#f8fafc;">
+        Visited today: {{ visited_today }} / {{ total_today }}
+      </p>
+  </header>
+    <main>
+      {% if total_today == 0 %}
+      <div style="max-width:960px; margin:0 auto 1rem; padding:0.75rem 1rem; border-radius:0.9rem; background:#fff7ed; border:1px solid rgba(251, 146, 60, 0.35); color:#7c2d12; text-align:center; font-weight:800;">
+        There are no carols scheduled today.
+        <a href="{{ url_for('schedule') }}" style="font-weight:800; color:#2563eb; text-decoration:underline;">See the schedule</a>
+      </div>
+      {% endif %}
+      <section class="track-layout">
+  <div class="cards-column" data-day="{{ day_filter }}" data-date="{{ iso_today }}">
+          {% if stops and stops|length > 0 %}
+          {% for entry in stops %}
+          <div class="house-wrapper">
+            <article class="house-card {% if entry.status == 'done' %}done{% elif entry.is_current %}current{% else %}pending{% endif %}" data-stop-id="{{ entry.stop.id or '' }}" data-visit-order="{{ entry.stop.visit_order or '' }}">
+              <p class="house-name" style="display:flex; align-items:center; gap:0.5rem;">
+                <span>{{ entry.stop.name }}</span>
+                <button
+                  type="button"
+                  class="copy-btn copy-address-link-btn"
+                  title="WhatsApp Copy (with map link)"
+                  data-name="{{ entry.stop.name }}"
+                  data-address="{{ entry.stop.address }}"
+                  data-zipcode="{{ entry.stop.zipcode or '' }}"
+                  aria-label="WhatsApp Copy with map link"
+                  style="padding:0.2rem 0.6rem; font-size:0.75rem; background: linear-gradient(135deg, #22c55e, #3b82f6);"
+                >WhatsApp Copy</button>
+              </p>
+              <span class="status-chip {% if entry.status == 'done' %}status-done{% elif entry.is_current %}status-current{% else %}status-pending{% endif %}">
+                {{ entry.badge }}
+              </span>
+              <p style="margin:0.2rem 0 0; font-weight:600;">
+                Address:
+                <a href="https://www.google.com/maps/search/?api=1&query={{ (entry.stop.address ~ ' ' ~ (entry.stop.zipcode or '')) | urlencode }}" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;">
+                  {{ entry.stop.address }}{% if entry.stop.zipcode %}, {{ entry.stop.zipcode }}{% endif %}
+                </a>
+              </p>
+              <a
+                href="https://www.google.com/maps/search/?api=1&query={{ (entry.stop.address ~ ' ' ~ (entry.stop.zipcode or '')) | urlencode }}"
+                target="_blank"
+                rel="noopener"
+                class="copy-btn"
+                style="text-decoration:none;display:inline-block;text-align:center;"
+              >Open address in Maps</a>
+            </article>
+          </div>
+          {% endfor %}
+          {% else %}
+          <div class="house-wrapper">
+            <article class="house-card pending" style="min-height:auto;">
+              <p class="house-name" style="margin-bottom:0.25rem;">No caroling scheduled for {{ today_name }} ({{ iso_today }})</p>
+              <p class="house-time">Please check the schedule or add addresses for today.</p>
+            </article>
+          </div>
+          {% endif %}
+        </div>
+        {% if stops and stops|length > 0 %}
+        <div class="road-column">
+          <div class="road-track">
+                <div class="road"></div>
+    <div class="santa-chariot" aria-hidden="true">
+                  <div class="gift-layer" aria-hidden="true"></div>
+                  <svg viewBox="0 0 140 130" role="presentation" aria-hidden="true" focusable="false">
+                    <defs>
+                      <linearGradient id="hatShine" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stop-color="#fff" stop-opacity="0.8" />
+                        <stop offset="100%" stop-color="#e5e7eb" stop-opacity="0" />
+                      </linearGradient>
+                    </defs>
+                    <rect x="26" y="78" width="88" height="28" rx="14" fill="#0f172a" />
+                    <circle cx="48" cy="108" r="10" fill="#0f172a" />
+                    <circle cx="92" cy="108" r="10" fill="#0f172a" />
+                    <rect x="38" y="60" width="64" height="30" rx="12" fill="#dc2626" />
+                    <rect x="50" y="68" width="40" height="10" rx="5" fill="#fde68a" />
+                    <circle cx="70" cy="32" r="18" fill="#ffe0c0" />
+                    <path d="M58 22c0-6 5-12 12-12s12 6 12 12" fill="#dc2626" />
+                    <path d="M68 10c-12 0-24 6-24 12v6h48v-6c0-6-12-12-24-12z" fill="#ef4444" />
+                    <rect x="54" y="18" width="32" height="6" rx="3" fill="#fff" />
+                    <path d="M56 40c2 4 12 4 16 0" stroke="#0b1320" stroke-width="2" stroke-linecap="round" fill="none" />
+                    <path d="M54 46c3 6 26 6 30 0" stroke="#0b1320" stroke-width="2" />
+                    <path d="M58 20c2 0 4 2 4 4s-2 4-4 4" stroke="#0b1320" stroke-width="2" stroke-linecap="round" fill="none" />
+                    <path d="M82 20c-2 0-4 2-4 4s2 4 4 4" stroke="#0b1320" stroke-width="2" stroke-linecap="round" fill="none" />
+                    <circle cx="60" cy="26" r="3" fill="#0b1320" />
+                    <circle cx="80" cy="26" r="3" fill="#0b1320" />
+                    <path d="M66 36c3 2 9 2 12 0" stroke="#0b1320" stroke-width="1.8" fill="none" />
+                    <path d="M52 46c0 0 6 8 18 8s18-8 18-8" fill="#fff" stroke="none" />
+                    <path d="M36 60c0 0 7-6 18-6s18 6 18 6" stroke="#0b1320" stroke-width="1" fill="none" />
+                    <path d="M30 58c0 0 4 6 12 6s12-6 12-6" stroke="#0b1320" stroke-width="1.2" fill="none" />
+                    <path d="M77 44c0 0 4 4 8 4" stroke="#0b1320" stroke-width="1.2" fill="none" />
+                    <path d="M63 44c0 0-4 4-8 4" stroke="#0b1320" stroke-width="1.2" fill="none" />
+                    <rect x="20" y="72" width="24" height="14" rx="6" fill="#f97316" />
+                    <rect x="96" y="72" width="22" height="14" rx="6" fill="#f59e0b" />
+                  </svg>
+                </div>
+              </div>
+        </div>
+        {% endif %}
+      </section>
+    </main>
+    <script>
+      // Snowfall overlay
+      // Copy "Next Home" message with clickable map URL
+      (function(){
+        function buildMapUrl(address, zipcode){
+          const query = encodeURIComponent(`${address} ${zipcode || ''}`.trim());
+          return `https://www.google.com/maps/search/?api=1&query=${query}`;
+        }
+        function buildMessageWithLink(name, address, zipcode){
+          const url = buildMapUrl(address, zipcode);
+          // WhatsApp-friendly: keep URL on its own line for clean preview and tap-target.
+          // Format:
+          // *Next Home:*
+          // <NAME>
+          // <ADDRESS>, <ZIP>
+          // <GOOGLE MAPS URL>
+          const namePart = name.trim();
+          const addrPart = `${address}${zipcode ? ', ' + zipcode : ''}`.trim();
+          return `*Next Home:*\n${namePart}\n${addrPart}\n${url}`;
+        }
+        function attach(){
+          document.querySelectorAll('.copy-address-link-btn').forEach(btn => {
+            btn.addEventListener('click', async () => {
+              const name = btn.dataset.name || '';
+              const address = btn.dataset.address || '';
+              const zipcode = btn.dataset.zipcode || '';
+              const text = buildMessageWithLink(name, address, zipcode);
+              try {
+                await navigator.clipboard.writeText(text);
+                btn.textContent = 'Copied';
+                btn.style.background = 'linear-gradient(135deg, #22c55e, #22c55e)';
+                setTimeout(() => { btn.textContent = 'WhatsApp Copy'; btn.style.background = 'linear-gradient(135deg, #22c55e, #3b82f6)'; }, 1800);
+              } catch (e) {
+                window.prompt('Copy this message', text);
+              }
+            });
+          });
+        }
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', attach);
+        else attach();
+      })();
+
+      (function(){
+        const canvas = document.getElementById('snow-canvas');
+        if (!canvas) return;
+        const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        if (prefersReduced) { canvas.style.display = 'none'; return; }
+        const ctx = canvas.getContext('2d');
+        const dpr = window.devicePixelRatio || 1;
+        function resize(){ canvas.width = Math.floor(window.innerWidth * dpr); canvas.height = Math.floor(window.innerHeight * dpr); }
+        resize(); window.addEventListener('resize', resize);
+        const flakes = []; const targetCount = Math.min(160, Math.max(60, Math.floor((window.innerWidth * window.innerHeight) / 15000)));
+        function spawn(){ return { x: Math.random()*canvas.width, y: Math.random()*-canvas.height, r:(0.8+Math.random()*2.2)*dpr, vy:(0.4+Math.random()*1.1)*dpr, vx:(-0.4+Math.random()*0.8)*dpr, sway:Math.random()*Math.PI*2, swaySpeed:0.005+Math.random()*0.01, alpha:0.65+Math.random()*0.35 }; }
+        for (let i=0;i<targetCount;i++) flakes.push(spawn());
+        let last=0; function step(ts){ const dt=Math.min(32, ts-last||16); last=ts; ctx.clearRect(0,0,canvas.width,canvas.height); ctx.save(); ctx.fillStyle='rgba(255,255,255,0.95)';
+          for (let i=0;i<flakes.length;i++){ const f=flakes[i]; f.sway+=f.swaySpeed*dt; f.y+=f.vy*(dt/16); f.x+=(f.vx+Math.sin(f.sway)*0.6*dpr)*(dt/16); if (f.y-f.r>canvas.height){ flakes[i]=spawn(); flakes[i].y=-f.r; flakes[i].x=Math.random()*canvas.width; } if (f.x<-10*dpr) f.x=canvas.width+10*dpr; if (f.x>canvas.width+10*dpr) f.x=-10*dpr; ctx.globalAlpha=f.alpha; ctx.beginPath(); ctx.arc(f.x,f.y,f.r,0,Math.PI*2); ctx.fill(); }
+          ctx.restore(); requestAnimationFrame(step); }
+        requestAnimationFrame(step);
+      })();
+    </script>
+    <script>
+
+  const santa = document.querySelector('.santa-chariot');
+  const track = document.querySelector('.road-track');
+  const stopMarkers = document.querySelectorAll('.house-card');
+  const cardsColumn = document.querySelector('.cards-column');
+  const giftLayer = document.querySelector('.santa-chariot .gift-layer');
+
+      if (giftLayer) {
+        const giftColors = ['#f97316', '#34d399', '#60a5fa', '#a855f7', '#fb7185'];
+        const randomRange = (min, max) => min + Math.random() * (max - min);
+
+        for (let i = 0; i < 12; i += 1) {
+          const gift = document.createElement('span');
+          gift.className = 'gift party-particle';
+          gift.style.setProperty('--offset-x', `${randomRange(-40, 40)}px`);
+          gift.style.setProperty('--offset-y', `${randomRange(-70, -150)}px`);
+          gift.style.setProperty('--duration', `${randomRange(2.6, 3.6)}s`);
+          gift.style.setProperty('--delay', `${Math.random() * 2}s`);
+          gift.style.setProperty('--gift-color', giftColors[i % giftColors.length]);
+          giftLayer.appendChild(gift);
+        }
+
+        for (let i = 0; i < 8; i += 1) {
+          const cracker = document.createElement('span');
+          cracker.className = 'cracker party-particle';
+          cracker.style.setProperty('--offset-x', `${randomRange(-18, 18)}px`);
+          cracker.style.setProperty('--offset-y', `${randomRange(-40, -120)}px`);
+          cracker.style.setProperty('--duration', `${randomRange(2.4, 3.2)}s`);
+          cracker.style.setProperty('--delay', `${Math.random() * 2}s`);
+          cracker.style.setProperty('--rotate', `${randomRange(-14, 14)}deg`);
+          giftLayer.appendChild(cracker);
+        }
+      }
+
+  if (santa && track && stopMarkers.length) {
+        const pause = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+  const moveSanta = (topPx) => new Promise(resolve => {
+          let resolved = false;
+          const handleTransition = () => {
+            if (resolved) return;
+            resolved = true;
+            santa.removeEventListener('transitionend', handleTransition);
+            clearTimeout(timeout);
+            resolve();
+          };
+          const timeout = setTimeout(handleTransition, 4000);
+          santa.addEventListener('transitionend', handleTransition);
+          santa.style.top = `${Math.max(0, Math.min(topPx, track.clientHeight - santa.offsetHeight))}px`;
+        });
+
+        const stopCount = stopMarkers.length;
+        const getPositions = () => {
+          if (!cardsColumn || !stopMarkers.length) {
+            return [track.clientHeight / 2];
+          }
+          const trackRect = track.getBoundingClientRect();
+          const columnTop = cardsColumn.getBoundingClientRect().top;
+          const santaHalf = santa.offsetHeight / 2;
+          const maxTop = Math.max(track.clientHeight - santa.offsetHeight, 0);
+          return Array.from(stopMarkers, card => {
+            const cardRect = card.getBoundingClientRect();
+            const centerY = cardRect.top + cardRect.height / 2;
+            const target = centerY - trackRect.top - santaHalf;
+            return Math.min(Math.max(target, 0), maxTop);
+          });
+        };
+
+  const cardsContainer = document.querySelector('.cards-column');
+  const day = cardsContainer?.dataset?.day || '';
+  const dateIso = cardsContainer?.dataset?.date || '';
+        let lastIndex = null;
+        let targetIndex = null;
+        let animating = false;
+
+        const applyClasses = (visitedFlags, currentIdx) => {
+          stopMarkers.forEach((el, i) => {
+            el.classList.remove('done', 'current', 'pending');
+            if (visitedFlags[i]) el.classList.add('done');
+            else if (i === currentIdx) el.classList.add('current');
+            else el.classList.add('pending');
+            const details = el.querySelector('details');
+            if (details) details.open = (i === currentIdx);
+          });
+        };
+
+        const pollStatus = async () => {
+          try {
+            const params = new URLSearchParams();
+            if (day) params.set('day', day);
+            if (dateIso) params.set('date', dateIso);
+            const res = await fetch(`/api/tracker_status?${params.toString()}`, { cache: 'no-store' });
+            if (!res.ok) return;
+            const data = await res.json();
+            const currentIdx = data.current_index;
+            const visitedFlags = data.visited || [];
+            applyClasses(visitedFlags, currentIdx ?? -1);
+            // Set new target only when index changes
+            if (currentIdx !== lastIndex) {
+              lastIndex = currentIdx;
+              targetIndex = currentIdx;
+              if (targetIndex === null || targetIndex === undefined) {
+                // All done → move to top
+                const positions = getPositions();
+                santa.style.transition = 'top 2s ease-in-out';
+                moveSanta(0);
+                return;
+              }
+              const positions = getPositions();
+              const pos = positions[Math.max(0, Math.min(targetIndex, positions.length - 1))];
+              santa.style.transition = 'top 3s ease-in-out';
+              moveSanta(pos);
+            }
+          } catch (e) {
+            // ignore network errors
+          }
+        };
+
+        // Initialize position and start polling
+        requestAnimationFrame(() => {
+          santa.style.top = '0px';
+        });
+  // Poll server every 1 minute to reduce load
+  setInterval(pollStatus, 60000);
+        // Trigger immediately
+        pollStatus();
+      }
+    </script>
+  </body>
+</html>

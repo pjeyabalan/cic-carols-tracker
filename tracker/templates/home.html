@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- Google Search Console verification -->
+    <meta name="google-site-verification" content="Nyn0wOmHCDF3h1dYHs2Qs37UVBXo-9Oi8t7pDW32vk4" />
+    <title>CIC Carols Planner & Tracker</title>
+    <link rel="icon" type="image/png" href="{{ url_for('favicon') }}" />
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Great+Vibes&family=Quicksand:wght@400;500;700&display=swap');
+      :root { color: #0b0b1a; font-family: 'Quicksand', 'Inter', system-ui, -apple-system, sans-serif; }
+      html, body { overflow-x: hidden; }
+      body {
+        margin: 0;
+        background: #0a1f1a;
+        background-image:
+          radial-gradient(circle at 10% 5%, rgba(255,255,255,0.08) 2px, transparent 3px),
+          radial-gradient(circle at 80% 20%, rgba(255,255,255,0.08) 2px, transparent 3px),
+          radial-gradient(circle at 30% 70%, rgba(255,255,255,0.1) 2px, transparent 3px),
+          linear-gradient(180deg, #0d2f25 0%, #061a16 60%, #061218 100%);
+        background-size: auto, auto, auto, cover;
+        color: #e2e8f0;
+      }
+      #snow-canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 2; pointer-events: none; }
+      main { position: relative; z-index: 3; }
+      .hero {
+        min-height: 28vh;
+        display: grid;
+        place-items: center;
+        padding: 2rem 1rem 1rem;
+        text-align: center;
+      }
+      .hero h1 {
+        margin: 0 0 0.6rem;
+        font-family: 'Great Vibes', cursive;
+        font-size: clamp(2.4rem, 6vw, 3.6rem);
+        line-height: 1.1;
+        background: linear-gradient(120deg, #facc15, #ef4444 50%, #22c55e);
+        -webkit-background-clip: text; background-clip: text; color: transparent;
+        text-shadow: 0 2px 10px rgba(250, 204, 21, 0.25);
+      }
+      .hero h2 {
+        margin: 0;
+        font-size: clamp(1rem, 2.5vw, 1.2rem);
+        color: #cbd5e1;
+        font-weight: 600;
+      }
+      .pathways {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 1rem;
+        max-width: 1000px;
+        margin: 0 auto;
+        padding: 1rem 1rem 2.4rem;
+      }
+      .card {
+        background: rgba(255,255,255,0.96);
+        border-radius: 1.5rem;
+        padding: 1.5rem;
+        border: 2px solid rgba(250, 204, 21, 0.25);
+        box-shadow: 0 20px 60px rgba(8, 18, 16, 0.35);
+        display: flex;
+        flex-direction: column;
+        gap: 0.6rem;
+        color: #0b0b1a;
+      }
+      .card h2 { margin: 0; font-size: 1.25rem; font-family: 'Playfair Display', serif; }
+      .card p { margin: 0; color: #475569; font-size: 0.95rem; }
+      .card .cta {
+        margin-top: auto;
+        align-self: flex-start;
+        padding: 0.5rem 1.1rem;
+        border-radius: 999px;
+        border: none;
+        background: linear-gradient(135deg, #ef4444, #22c55e);
+        color: #fff;
+        font-weight: 800;
+        cursor: pointer;
+        text-decoration: none;
+        box-shadow: 0 8px 18px rgba(239, 68, 68, 0.25);
+      }
+      .quick-actions {
+        display:flex;
+        gap:0.6rem;
+        justify-content:center;
+        padding: 0 1rem 1rem;
+        flex-wrap: wrap;
+      }
+      .quick-actions a {
+        text-decoration:none;
+        border:2px solid rgba(250, 204, 21, 0.35);
+        border-radius:999px;
+        padding:0.6rem 1rem;
+        color:#0b0b1a;
+        background:#fff;
+        font-weight:800;
+        box-shadow: 0 6px 16px rgba(8, 18, 16, 0.25);
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="snow-canvas" aria-hidden="true"></canvas>
+    <main>
+      <section class="hero">
+        <h1>CIC Carols Planner & Tracker</h1>
+        <h2>Plan nights, add addresses, follow the live route — all in one place.</h2>
+        <div class="quick-actions" style="max-width:100%;">
+          <a href="{{ url_for('tracker') }}">Start Tracker</a>
+          <a href="{{ url_for('add') }}">Add Address</a>
+          <a href="{{ url_for('schedule') }}">Weekly Calendar</a>
+          <a href="{{ url_for('registration') }}">Registration</a>
+          <a href="{{ url_for('registrations_list') }}">Registrations List</a>
+          <a href="{{ url_for('songs') }}">Songs</a>
+        </div>
+      </section>
+      <section class="pathways">
+        {% for tile in tiles %}
+        <article class="card">
+          <h2>{{ tile.title }}</h2>
+          <p>{{ tile.description }}</p>
+          <a class="cta" href="{{ tile.url }}">{{ tile.cta }}</a>
+        </article>
+        {% endfor %}
+      </section>
+    </main>
+    <script>
+      // Gentle snowfall using canvas; respects prefers-reduced-motion
+      (function(){
+        const canvas = document.getElementById('snow-canvas');
+        if (!canvas) return;
+        const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        if (prefersReduced) { canvas.style.display = 'none'; return; }
+        const ctx = canvas.getContext('2d');
+        const dpr = window.devicePixelRatio || 1;
+        function resize(){
+          canvas.width = Math.floor(window.innerWidth * dpr);
+          canvas.height = Math.floor(window.innerHeight * dpr);
+        }
+        resize();
+        window.addEventListener('resize', resize);
+        const flakes = [];
+        const targetCount = Math.min(160, Math.max(60, Math.floor((window.innerWidth * window.innerHeight) / 15000)));
+        function spawnFlake() {
+          return {
+            x: Math.random() * canvas.width,
+            y: Math.random() * -canvas.height,
+            r: (0.8 + Math.random() * 2.2) * dpr,
+            vy: (0.4 + Math.random() * 1.1) * dpr,
+            vx: (-0.4 + Math.random() * 0.8) * dpr,
+            sway: Math.random() * Math.PI * 2,
+            swaySpeed: 0.005 + Math.random() * 0.01,
+            alpha: 0.65 + Math.random() * 0.35,
+          };
+        }
+        for (let i = 0; i < targetCount; i++) flakes.push(spawnFlake());
+        let lastTs = 0;
+        function step(ts){
+          const dt = Math.min(32, ts - lastTs || 16); lastTs = ts;
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.save();
+          ctx.fillStyle = 'rgba(255,255,255,0.95)';
+          for (let i = 0; i < flakes.length; i++){
+            const f = flakes[i];
+            f.sway += f.swaySpeed * dt;
+            f.y += f.vy * (dt / 16);
+            f.x += (f.vx + Math.sin(f.sway) * 0.6 * dpr) * (dt / 16);
+            if (f.y - f.r > canvas.height) { flakes[i] = spawnFlake(); flakes[i].y = -f.r; flakes[i].x = Math.random() * canvas.width; }
+            if (f.x < -10 * dpr) f.x = canvas.width + 10 * dpr;
+            if (f.x > canvas.width + 10 * dpr) f.x = -10 * dpr;
+            ctx.globalAlpha = f.alpha;
+            ctx.beginPath();
+            ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          ctx.restore();
+          requestAnimationFrame(step);
+        }
+        requestAnimationFrame(step);
+      })();
+    </script>
+  </body>
+</html>
