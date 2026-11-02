@@ -35,6 +35,7 @@ def test_registration_form_has_address_fields() -> None:
 def test_registration_post_persists_full_address(monkeypatch) -> None:
     fake_pg = MagicMock(spec=PostgresDataSource)
     fake_pg.add_stop.return_value = 42
+    fake_pg.get_stops.return_value = []
     monkeypatch.setattr(web_mod, "data_source", fake_pg)
 
     client = app.test_client()
@@ -44,9 +45,9 @@ def test_registration_post_persists_full_address(monkeypatch) -> None:
             "first_name": "Daniel",
             "last_name": "Rajan",
             "address": "742 Evergreen Terrace",
-            "city": "Buffalo Grove",
+            "city": "Schaumburg",
             "state": "IL",
-            "zipcode": "60089",
+            "zipcode": "60193",
             "phone": "(847) 555-1234",
             "email": "daniel@example.com",
             "family_members": "Daniel, Priya, Joshua",
@@ -55,22 +56,64 @@ def test_registration_post_persists_full_address(monkeypatch) -> None:
         },
     )
     assert response.status_code == 200
-    assert b"Your home address has been registered" in response.data
+    assert b"added to the Carols Schedule" in response.data
+    assert b"Schaumburg" in response.data
     fake_pg.add_stop.assert_called_once_with(
         name="Daniel Rajan",
-        address="742 Evergreen Terrace, Buffalo Grove, IL",
+        address="742 Evergreen Terrace, Schaumburg, IL",
         family_members=["Daniel", "Priya", "Joshua"],
         contact_number="(847) 555-1234",
         email="daniel@example.com",
         prayer_request="Health and blessings for 2027",
-        zipcode="60089",
-        day=None,
-        date=None,
+        zipcode="60193",
+        day="Wednesday",
+        date="2026-12-09",
         scheduled_time=None,
         visit_order=None,
         address_visited=False,
         referral="Benny-CIC",
     )
+
+
+def test_schedule_displays_2026_areas_and_house_counts(monkeypatch) -> None:
+    monkeypatch.setenv("CAROLS_YEAR", "2026")
+    fake_pg = MagicMock(spec=PostgresDataSource)
+    fake_pg.get_stops.side_effect = lambda date=None, **kw: (
+        [
+            CarolsStop(
+                id=1,
+                name="Daniel Rajan",
+                family_members=[],
+                address="742 Evergreen Terrace, Schaumburg, IL",
+                zipcode="60193",
+                date="2026-12-09",
+                day="Wednesday",
+                referral="Carols-CIC",
+            )
+        ]
+        if date in (None, "2026-12-09")
+        else []
+    )
+    monkeypatch.setattr(web_mod, "data_source", fake_pg)
+
+    client = app.test_client()
+    resp = client.get("/schedule")
+    assert resp.status_code == 200
+    for area in [
+        b"Buffalo Grove",
+        b"Mount Prospect",
+        b"Arlington Heights",
+        b"Elgin",
+        b"Schaumburg",
+        b"Hawthorn Woods / Vernon Hills",
+        b"Palatine",
+        b"Gurnee",
+        b"Hoffman Estates",
+    ]:
+        assert area in resp.data
+    assert b"1 house" in resp.data
+    assert b"2026-12-17" in resp.data
+    assert b"2026-12-18" not in resp.data
 
 
 def test_registrations_list_and_full_backup_export(monkeypatch) -> None:

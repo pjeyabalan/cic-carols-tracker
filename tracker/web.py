@@ -623,6 +623,246 @@ def backup_export_json():
     return jsonify({"ok": True, "count": len(payload), "stops": payload})
 
 
+CAROLS_2026_AREA_MAP: dict[str, str] = {
+    "2026-12-02": "Buffalo Grove",
+    "2026-12-04": "Mount Prospect",
+    "2026-12-05": "Arlington Heights",
+    "2026-12-08": "Elgin",
+    "2026-12-09": "Schaumburg",
+    "2026-12-11": "Hawthorn Woods / Vernon Hills",
+    "2026-12-12": "Buffalo Grove",
+    "2026-12-15": "Palatine",
+    "2026-12-16": "Gurnee",
+    "2026-12-17": "Hoffman Estates",
+}
+
+# Map Chicagoland cities (lowercase) to an area key or ISO date
+_CITY_TO_2026_TARGET: dict[str, str] = {
+    # Buffalo Grove (2 nights: Dec 2 Wed & Dec 12 Sat)
+    "buffalo grove": "BG",
+    "wheeling": "BG",
+    "riverwoods": "BG",
+    # Mount Prospect (Dec 4 Fri)
+    "mount prospect": "2026-12-04",
+    "mt prospect": "2026-12-04",
+    "mt. prospect": "2026-12-04",
+    "des plaines": "2026-12-04",
+    "prospect heights": "2026-12-04",
+    "park ridge": "2026-12-04",
+    "niles": "2026-12-04",
+    "glenview": "2026-12-04",
+    "morton grove": "2026-12-04",
+    "skokie": "2026-12-04",
+    "evanston": "2026-12-04",
+    "northbrook": "2026-12-04",
+    "chicago": "2026-12-04",
+    # Arlington Heights (Dec 5 Sat)
+    "arlington heights": "2026-12-05",
+    "rolling meadows": "2026-12-05",
+    "elk grove village": "2026-12-05",
+    "elk grove": "2026-12-05",
+    "itasca": "2026-12-05",
+    "wood dale": "2026-12-05",
+    "bensenville": "2026-12-05",
+    # Elgin (Dec 8 Tue)
+    "elgin": "2026-12-08",
+    "south elgin": "2026-12-08",
+    "bartlett": "2026-12-08",
+    "east dundee": "2026-12-08",
+    "west dundee": "2026-12-08",
+    "carpentersville": "2026-12-08",
+    "algonquin": "2026-12-08",
+    "lake in the hills": "2026-12-08",
+    "huntley": "2026-12-08",
+    "pingree grove": "2026-12-08",
+    "gilberts": "2026-12-08",
+    "hampshire": "2026-12-08",
+    "st. charles": "2026-12-08",
+    "st charles": "2026-12-08",
+    "saint charles": "2026-12-08",
+    "geneva": "2026-12-08",
+    "batavia": "2026-12-08",
+    # Schaumburg (Dec 9 Wed)
+    "schaumburg": "2026-12-09",
+    "roselle": "2026-12-09",
+    "bloomingdale": "2026-12-09",
+    "medinah": "2026-12-09",
+    "hanover park": "2026-12-09",
+    "glendale heights": "2026-12-09",
+    "carol stream": "2026-12-09",
+    "addison": "2026-12-09",
+    "elmhurst": "2026-12-09",
+    "lombard": "2026-12-09",
+    "glen ellyn": "2026-12-09",
+    "wheaton": "2026-12-09",
+    "winfield": "2026-12-09",
+    "warrenville": "2026-12-09",
+    "naperville": "2026-12-09",
+    "aurora": "2026-12-09",
+    "north aurora": "2026-12-09",
+    "lisle": "2026-12-09",
+    "downers grove": "2026-12-09",
+    "bolingbrook": "2026-12-09",
+    # Hawthorn Woods / Vernon Hills (Dec 11 Fri)
+    "hawthorn woods": "2026-12-11",
+    "vernon hills": "2026-12-11",
+    "lake zurich": "2026-12-11",
+    "long grove": "2026-12-11",
+    "kildeer": "2026-12-11",
+    "mundelein": "2026-12-11",
+    "libertyville": "2026-12-11",
+    "lincolnshire": "2026-12-11",
+    "deerfield": "2026-12-11",
+    "highland park": "2026-12-11",
+    "lake forest": "2026-12-11",
+    "lake bluff": "2026-12-11",
+    "wauconda": "2026-12-11",
+    "island lake": "2026-12-11",
+    "cary": "2026-12-11",
+    "crystal lake": "2026-12-11",
+    # Palatine (Dec 15 Tue)
+    "palatine": "2026-12-15",
+    "inverness": "2026-12-15",
+    "barrington": "2026-12-15",
+    "south barrington": "2026-12-15",
+    "north barrington": "2026-12-15",
+    "lake barrington": "2026-12-15",
+    "deer park": "2026-12-15",
+    # Gurnee (Dec 16 Wed)
+    "gurnee": "2026-12-16",
+    "grayslake": "2026-12-16",
+    "hainesville": "2026-12-16",
+    "round lake": "2026-12-16",
+    "round lake beach": "2026-12-16",
+    "round lake park": "2026-12-16",
+    "round lake heights": "2026-12-16",
+    "waukegan": "2026-12-16",
+    "park city": "2026-12-16",
+    "north chicago": "2026-12-16",
+    "wadsworth": "2026-12-16",
+    "lindenhurst": "2026-12-16",
+    "lake villa": "2026-12-16",
+    "antioch": "2026-12-16",
+    "fox lake": "2026-12-16",
+    "zion": "2026-12-16",
+    "beach park": "2026-12-16",
+    # Hoffman Estates (Dec 17 Thu)
+    "hoffman estates": "2026-12-17",
+    "streamwood": "2026-12-17",
+}
+
+_ZIP_TO_2026_TARGET: dict[str, str] = {
+    "60089": "BG",
+    "60090": "BG",
+    "60056": "2026-12-04",
+    "60016": "2026-12-04",
+    "60018": "2026-12-04",
+    "60070": "2026-12-04",
+    "60068": "2026-12-04",
+    "60714": "2026-12-04",
+    "60025": "2026-12-04",
+    "60026": "2026-12-04",
+    "60076": "2026-12-04",
+    "60062": "2026-12-04",
+    "60004": "2026-12-05",
+    "60005": "2026-12-05",
+    "60008": "2026-12-05",
+    "60007": "2026-12-05",
+    "60143": "2026-12-05",
+    "60191": "2026-12-05",
+    "60120": "2026-12-08",
+    "60123": "2026-12-08",
+    "60124": "2026-12-08",
+    "60177": "2026-12-08",
+    "60103": "2026-12-08",
+    "60118": "2026-12-08",
+    "60110": "2026-12-08",
+    "60102": "2026-12-08",
+    "60156": "2026-12-08",
+    "60142": "2026-12-08",
+    "60174": "2026-12-08",
+    "60134": "2026-12-08",
+    "60173": "2026-12-09",
+    "60193": "2026-12-09",
+    "60194": "2026-12-09",
+    "60195": "2026-12-09",
+    "60172": "2026-12-09",
+    "60108": "2026-12-09",
+    "60133": "2026-12-09",
+    "60139": "2026-12-09",
+    "60188": "2026-12-09",
+    "60101": "2026-12-09",
+    "60148": "2026-12-09",
+    "60540": "2026-12-09",
+    "60504": "2026-12-09",
+    "60505": "2026-12-09",
+    "60047": "2026-12-11",
+    "60061": "2026-12-11",
+    "60060": "2026-12-11",
+    "60048": "2026-12-11",
+    "60069": "2026-12-11",
+    "60015": "2026-12-11",
+    "60084": "2026-12-11",
+    "60067": "2026-12-15",
+    "60074": "2026-12-15",
+    "60010": "2026-12-15",
+    "60031": "2026-12-16",
+    "60030": "2026-12-16",
+    "60073": "2026-12-16",
+    "60085": "2026-12-16",
+    "60087": "2026-12-16",
+    "60046": "2026-12-16",
+    "60002": "2026-12-16",
+    "60020": "2026-12-16",
+    "60099": "2026-12-16",
+    "60169": "2026-12-17",
+    "60192": "2026-12-17",
+    "60107": "2026-12-17",
+}
+
+
+def _resolve_buffalo_grove_date() -> str:
+    """Place first 8 Buffalo Grove homes on Wed Dec 2, then Sat Dec 12."""
+    try:
+        dec2_stops = data_source.get_stops(date="2026-12-02")
+        if len(dec2_stops) < 8:
+            return "2026-12-02"
+        return "2026-12-12"
+    except Exception:
+        return "2026-12-02"
+
+
+def _auto_assign_carols_date(
+    city: Optional[str],
+    zipcode: Optional[str],
+    preferred_date: Optional[str] = None,
+) -> tuple[Optional[str], Optional[str]]:
+    """Return (date_iso, weekday_name) matched from preferred_date, city, or zipcode."""
+    if preferred_date:
+        try:
+            d = datetime.strptime(preferred_date.strip(), "%Y-%m-%d").date()
+            return preferred_date.strip(), d.strftime("%A")
+        except ValueError:
+            pass
+
+    target: Optional[str] = None
+    if city:
+        norm_city = re.sub(r"\s+", " ", city.strip().lower())
+        target = _CITY_TO_2026_TARGET.get(norm_city)
+    if not target and zipcode:
+        zip5 = re.sub(r"\D+", "", zipcode)[:5]
+        if len(zip5) == 5:
+            target = _ZIP_TO_2026_TARGET.get(zip5)
+
+    if target == "BG":
+        target = _resolve_buffalo_grove_date()
+
+    if target:
+        d = datetime.strptime(target, "%Y-%m-%d").date()
+        return target, d.strftime("%A")
+    return None, None
+
+
 def _season_year() -> int:
     raw = (os.getenv("CAROLS_YEAR") or "").strip()
     if raw.isdigit():
@@ -649,9 +889,13 @@ def _build_planned_dates(extra_iso_dates: Optional[Iterable[str]] = None) -> lis
         result_set.discard(date(2025, 12, 20))
         result_set.add(date(2025, 12, 21))
         result_set.add(date(2025, 12, 22))
+    elif year == 2026:
+        # Finish Carols by Thu Dec 17 ahead of the Dec 18 Christmas Program
+        for iso_key in CAROLS_2026_AREA_MAP:
+            result_set.add(date.fromisoformat(iso_key))
     else:
         start = date(year, 12, 1)
-        end = date(year, 12, 23)
+        end = date(year, 12, 17)
         current = start
         while current <= end:
             if current.weekday() in allowed:
@@ -679,14 +923,15 @@ def schedule() -> str:  # pragma: no cover - UI entrypoint
     reference_time = _now_local()
     season_year = _season_year()
 
-    # Historical 2025 city & Santa volunteer badges (preserved if viewing 2025 dates)
+    # Area labels by date (2026 planned schedule + 2025 historical dates)
     city_labels = {
+        **CAROLS_2026_AREA_MAP,
         "2025-12-03": "Buffalo Grove",
         "2025-12-05": "Mount Prospect",
         "2025-12-06": "Arlington Heights",
         "2025-12-09": "Elgin",
         "2025-12-10": "Schaumburg",
-        "2025-12-12": "Hawthorn Woods",
+        "2025-12-12": "Hawthorn Woods / Vernon Hills",
         "2025-12-13": "Buffalo Grove",
         "2025-12-16": "Palatine",
         "2025-12-17": "Gurnee",
@@ -718,7 +963,8 @@ def schedule() -> str:  # pragma: no cover - UI entrypoint
         schedule_blocks.append(
             {
                 "id": iso_date,
-                "display": planned_date.strftime("%a, %b %d"),
+                "display": planned_date.strftime("%a, %b %-d"),
+                "full_display": planned_date.strftime("%A, %b %-d"),
                 "day": day_name,
                 "date": iso_date,
                 "city": city_labels.get(iso_date),
@@ -873,11 +1119,19 @@ def registration() -> str:
 
     Collects family name, full home address (street, city, state, zipcode), phone number,
     optional email, family members, prayer request, and invited-by referral.
-    Stores record in Postgres with date=None until scheduled by an organizer.
+    Automatically assigns the matching 2026 Carols Area Night so /schedule updates immediately.
     """
     using_postgres = isinstance(data_source, PostgresDataSource)
     message: Optional[str] = None
     error: Optional[str] = None
+    carols_nights = [
+        {
+            "date": iso_key,
+            "area": area_name,
+            "label": f"{date.fromisoformat(iso_key).strftime('%a, %b %-d')} — {area_name}",
+        }
+        for iso_key, area_name in CAROLS_2026_AREA_MAP.items()
+    ]
     if request.method == "POST":
         if not using_postgres:
             error = "Registration requires DATABASE_URL or PG_DSN to be configured."
@@ -893,6 +1147,7 @@ def registration() -> str:
             family_raw = (request.form.get("family_members") or "").strip()
             prayer_request = (request.form.get("prayer_request") or "").strip() or None
             raw_ref = (request.form.get("referral") or "").strip()
+            preferred_date = (request.form.get("preferred_date") or "").strip() or None
 
             if not first:
                 error = "First name is required."
@@ -909,6 +1164,13 @@ def registration() -> str:
                         referral_val = raw_ref if "cic" in raw_ref.lower() else f"{raw_ref}-CIC"
                     else:
                         referral_val = "Carols-CIC"
+
+                    assigned_date, assigned_day = _auto_assign_carols_date(
+                        city=city,
+                        zipcode=zipcode,
+                        preferred_date=preferred_date,
+                    )
+
                     data_source.add_stop(
                         name=name,
                         address=full_address,
@@ -917,17 +1179,26 @@ def registration() -> str:
                         email=email,
                         prayer_request=prayer_request,
                         zipcode=zipcode,
-                        day=None,
-                        date=None,
+                        day=assigned_day,
+                        date=assigned_date,
                         scheduled_time=None,
                         visit_order=None,
                         address_visited=False,
                         referral=referral_val,
                     )
-                    message = (
-                        "Thank you! Your home address has been registered for a Christmas Carols visit. "
-                        "Our team will reach out once your date and time window are scheduled!"
-                    )
+                    if assigned_date:
+                        pretty_date = date.fromisoformat(assigned_date).strftime("%A, %b %-d")
+                        area_label = CAROLS_2026_AREA_MAP.get(assigned_date, city or "")
+                        area_suffix = f" ({area_label})" if area_label else ""
+                        message = (
+                            f"Thank you! Your home has been registered and added to the Carols Schedule "
+                            f"for {pretty_date}{area_suffix}."
+                        )
+                    else:
+                        message = (
+                            "Thank you! Your home address has been registered for a Christmas Carols visit. "
+                            "Our team will assign your Carols visit night shortly!"
+                        )
                 except Exception as exc:
                     error = f"Failed to submit registration: {exc}"
     return render_template(
@@ -936,6 +1207,7 @@ def registration() -> str:
         message=message,
         error=error,
         default_state="IL",
+        carols_nights=carols_nights,
     )
 
 

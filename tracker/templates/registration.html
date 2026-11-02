@@ -82,7 +82,7 @@
         display: block;
         margin-bottom: 0.45rem;
       }
-      input, textarea {
+      input, textarea, select {
         width: 100%;
         display: block;
         padding: 0.8rem 0.95rem;
@@ -95,7 +95,7 @@
         transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
       }
       textarea { min-height: 88px; resize: vertical; }
-      input:focus, textarea:focus {
+      input:focus, textarea:focus, select:focus {
         outline: none;
         border-color: #ef4444;
         box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.18);
@@ -186,6 +186,19 @@
             <label for="zipcode">Zipcode</label>
             <input id="zipcode" name="zipcode" type="text" inputmode="numeric" autocomplete="postal-code" placeholder="e.g., 60089" maxlength="10" />
           </div>
+
+          {% if carols_nights %}
+          <div class="full">
+            <label for="preferred_date">Carols Area &amp; Night</label>
+            <select id="preferred_date" name="preferred_date">
+              <option value="">Auto-assign based on my City / Zipcode</option>
+              {% for night in carols_nights %}
+              <option value="{{ night.date }}">{{ night.label }}</option>
+              {% endfor %}
+            </select>
+            <div class="note">Leave on Auto-assign or pick your area's Carols night (Dec 2 – Dec 17).</div>
+          </div>
+          {% endif %}
 
           <div class="col-6">
             <label for="phone">Phone Number <span class="req" aria-hidden="true">*</span></label>

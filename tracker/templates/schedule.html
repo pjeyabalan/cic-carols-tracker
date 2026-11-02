@@ -38,8 +38,8 @@
       }
       .date-strip {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-        gap: 0.6rem;
+        grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
+        gap: 0.65rem;
         margin-bottom: 1rem;
       }
       .search-bar {
@@ -72,9 +72,9 @@
         margin-bottom: 0.5rem;
       }
       .date-pill {
-        border: 1px solid rgba(15, 23, 42, 0.2);
-        border-radius: 999px;
-        padding: 0.75rem 1rem;
+        border: 2px solid rgba(15, 23, 42, 0.14);
+        border-radius: 1.1rem;
+        padding: 0.75rem 0.85rem;
         background: #fff;
         cursor: pointer;
         font-weight: 600;
@@ -83,9 +83,31 @@
         text-align: center;
         display: flex;
         flex-direction: column;
-        gap: 0.15rem;
+        align-items: center;
+        gap: 0.22rem;
         position: relative;
         width: 100%;
+      }
+      .date-pill .pill-date {
+        font-size: 0.92rem;
+        font-weight: 700;
+        color: #334155;
+      }
+      .date-pill .area-name {
+        font-size: 0.96rem;
+        font-weight: 800;
+        color: #b91c1c;
+        line-height: 1.2;
+      }
+      .date-pill .house-count {
+        color: #15803d;
+        font-size: 0.8rem;
+        font-weight: 700;
+        background: #f0fdf4;
+        border: 1px solid #bbf7d0;
+        border-radius: 999px;
+        padding: 0.1rem 0.55rem;
+        margin-top: 0.1rem;
       }
       .date-pill.match {
         border-color: #2563eb;
@@ -93,7 +115,7 @@
       }
       .date-pill.active {
         border-color: #eab308;
-        box-shadow: 0 10px 25px rgba(234, 179, 8, 0.25);
+        box-shadow: 0 10px 25px rgba(234, 179, 8, 0.3);
         transform: translateY(-2px);
       }
       .date-pill small {
@@ -326,7 +348,11 @@
     <section class="schedule-shell">
       <div class="intro">
         <p style="color:#cbd5e1;">
-          Christmas Carols {{ season_year }} schedule (Tuesdays, Wednesdays, Fridays, and Saturdays, plus any custom scheduled nights).
+          {% if season_year == 2026 %}
+            Christmas Carols 2026 run from Wed, Dec 2 through Thu, Dec 17 (finishing ahead of our Dec 18 Christmas Program). As families register their address, their Area &amp; Night updates automatically below!
+          {% else %}
+            Christmas Carols {{ season_year }} schedule by Area and Night.
+          {% endif %}
         </p>
       </div>
       <form class="search-bar" id="search-form">
@@ -343,11 +369,11 @@
               class="date-pill"
               data-target="{{ block.id }}"
             >
-              {{ block.display }}
+              <span class="pill-date">{{ block.display }}</span>
               {% if block.city %}
-              <small>{{ block.city }}</small>
+              <span class="area-name">{{ block.city }}</span>
               {% endif %}
-              <small>{{ block.count }} addresses</small>
+              <small class="house-count">{{ block.count }} {{ 'house' if block.count == 1 else 'houses' }}</small>
             </button>
             {% if block.santa %}
             <div class="santa-orbit" role="img" aria-label="Santa: {{ block.santa }}">
@@ -385,13 +411,13 @@
         <div class="date-panel" id="panel-{{ block.id }}">
           <div class="panel-header">
             <h2>
-              {{ block.display }}
+              {{ block.full_display or block.display }}
               {% if block.city %}
-                <span style="font-size:0.95rem; color:#475569; font-weight:600;">→ {{ block.city }}</span>
+                <span style="font-size:1.05rem; color:#b91c1c; font-weight:800;"> · {{ block.city }}</span>
               {% endif %}
             </h2>
             <div class="panel-right">
-              <span class="pill">{{ block.count }} addresses</span>
+              <span class="pill">{{ block.count }} {{ 'house' if block.count == 1 else 'houses' }}</span>
             </div>
           </div>
           {% if using_postgres %}
@@ -413,7 +439,6 @@
             </div>
           </div>
           {% endif %}
-          {% if block.stops %}
           <div class="card-grid" data-date="{{ block.date }}">
             {% for entry in block.stops %}
             <article class="house-card" {% if using_postgres and entry.stop.id %}draggable="true" data-id="{{ entry.stop.id }}"{% endif %}>
@@ -481,8 +506,8 @@
             </article>
             {% endfor %}
           </div>
-          {% else %}
-          <p class="placeholder">No houses planned for this date yet.</p>
+          {% if not block.stops %}
+          <p class="placeholder" data-empty="{{ block.date }}">No houses planned for this area yet.</p>
           {% endif %}
         </div>
         {% endfor %}
@@ -794,17 +819,19 @@
                   }
                 }
                 // bump counts
-                const pill = document.querySelector(`.date-pill[data-target="${date}"] small`);
+                const emptyMsg = document.querySelector(`.placeholder[data-empty="${date}"]`);
+                if (emptyMsg) emptyMsg.style.display = 'none';
+                const pill = document.querySelector(`.date-pill[data-target="${date}"] .house-count`);
                 if (pill) {
                   const t = pill.textContent || '';
                   const num = parseInt((t.match(/\d+/) || ['0'])[0], 10) + 1;
-                  pill.textContent = `${num} addresses`;
+                  pill.textContent = `${num} ${num === 1 ? 'house' : 'houses'}`;
                 }
                 const headerCount = document.querySelector(`#panel-${date} .panel-header .pill`);
                 if (headerCount) {
                   const t = headerCount.textContent || '';
                   const num = parseInt((t.match(/\d+/) || ['0'])[0], 10) + 1;
-                  headerCount.textContent = `${num} addresses`;
+                  headerCount.textContent = `${num} ${num === 1 ? 'house' : 'houses'}`;
                 }
                 // clear & hide form
                 if (nameEl) nameEl.value = '';
@@ -846,17 +873,17 @@
                 card.remove();
                 // Update counts
                 if (date) {
-                  const pill = document.querySelector(`.date-pill[data-target="${date}"] small`);
+                  const pill = document.querySelector(`.date-pill[data-target="${date}"] .house-count`);
                   if (pill) {
                     const t = pill.textContent || '';
                     const num = Math.max(0, parseInt((t.match(/\d+/) || ['0'])[0], 10) - 1);
-                    pill.textContent = `${num} addresses`;
+                    pill.textContent = `${num} ${num === 1 ? 'house' : 'houses'}`;
                   }
                   const headerCount = document.querySelector(`#panel-${date} .panel-header .pill`);
                   if (headerCount) {
                     const t = headerCount.textContent || '';
                     const num = Math.max(0, parseInt((t.match(/\d+/) || ['0'])[0], 10) - 1);
-                    headerCount.textContent = `${num} addresses`;
+                    headerCount.textContent = `${num} ${num === 1 ? 'house' : 'houses'}`;
                   }
                 }
               } else {
