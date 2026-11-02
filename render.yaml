@@ -1,14 +1,5 @@
-# Render Blueprint for CIC Carols Tracker
+# Render Blueprint for CIC Carols Tracker (100% Free Tier — No Credit Card Required)
 # Deploys to its own standalone hostname: https://cic-carols-tracker.onrender.com
-# Completely independent from tbq-jbq.
-
-databases:
-  - name: carols-database
-    databaseName: carols
-    user: carols_user
-    # 'basic-256mb' (~$6/mo) never expires or auto-deletes data (unlike Render's 30-day free DB),
-    # and works alongside any existing free DB on your Render account.
-    plan: basic-256mb
 
 services:
   - type: web
@@ -24,6 +15,4 @@ services:
       - key: APP_TIMEZONE
         value: America/Chicago
       - key: DATABASE_URL
-        fromDatabase:
-          name: carols-database
-          property: connectionString
+        sync: false
