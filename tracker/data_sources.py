@@ -19,6 +19,10 @@ except ImportError:  # pragma: no cover
 def resolve_pg_dsn(explicit_dsn: Optional[str] = None) -> Optional[str]:
     """Resolve PostgreSQL connection string from explicit arg, DATABASE_URL (Render), or PG_DSN."""
     dsn = (explicit_dsn or os.getenv("DATABASE_URL") or os.getenv("PG_DSN") or "").strip()
+    if dsn.lower().startswith("psql "):
+        dsn = dsn[5:].strip()
+    if len(dsn) >= 2 and dsn[0] == dsn[-1] and dsn[0] in ("'", '"'):
+        dsn = dsn[1:-1].strip()
     if not dsn:
         return None
     if "${PG_PASSWORD}" in dsn:
