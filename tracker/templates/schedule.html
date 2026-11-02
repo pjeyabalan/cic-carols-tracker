@@ -349,7 +349,7 @@
       <div class="intro">
         <p style="color:#cbd5e1;">
           {% if season_year == 2026 %}
-            Christmas Carols 2026 run from Wed, Dec 2 through Thu, Dec 17 (finishing ahead of our Dec 18 Christmas Program). As families register their address, their Area &amp; Night updates automatically below!
+            Christmas Carols 2026 run from Tue, Dec 1 through Wed, Dec 16 (finishing ahead of our Dec 18 Christmas Program). As families register their address, their closest Area &amp; Night updates automatically below!
           {% else %}
             Christmas Carols {{ season_year }} schedule by Area and Night.
           {% endif %}
@@ -420,7 +420,7 @@
               <span class="pill">{{ block.count }} {{ 'house' if block.count == 1 else 'houses' }}</span>
             </div>
           </div>
-          {% if using_postgres %}
+          {% if using_postgres and not block.is_unscheduled %}
           <div class="reorder-bar">
             <button type="button" class="reorder-btn quick-add-btn" data-qa="open" data-date="{{ block.date }}">Quick Add</button>
             {% if block.stops %}

@@ -3,13 +3,23 @@ from __future__ import annotations
 import base64
 import csv
 import io
+import json
+import math
 import os
 import re
+import ssl
+import urllib.parse
+import urllib.request
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
 from typing import Iterable, Optional
 from zoneinfo import ZoneInfo
+
+try:
+    import certifi
+except ImportError:  # pragma: no cover
+    certifi = None  # type: ignore[assignment]
 
 from flask import Flask, jsonify, make_response, redirect, render_template, request, url_for
 
@@ -624,86 +634,109 @@ def backup_export_json():
 
 
 CAROLS_2026_AREA_MAP: dict[str, str] = {
-    "2026-12-02": "Buffalo Grove",
-    "2026-12-04": "Mount Prospect",
-    "2026-12-05": "Arlington Heights",
-    "2026-12-08": "Elgin",
-    "2026-12-09": "Schaumburg",
+    "2026-12-01": "Buffalo Grove",
+    "2026-12-02": "Mount Prospect",
+    "2026-12-04": "Arlington Heights",
+    "2026-12-05": "Elgin",
+    "2026-12-08": "Schaumburg",
+    "2026-12-09": "Palatine",
     "2026-12-11": "Hawthorn Woods / Vernon Hills",
     "2026-12-12": "Buffalo Grove",
-    "2026-12-15": "Palatine",
-    "2026-12-16": "Gurnee",
-    "2026-12-17": "Hoffman Estates",
+    "2026-12-15": "Gurnee",
+    "2026-12-16": "Hoffman Estates",
 }
 
-# Map Chicagoland cities (lowercase) to an area key or ISO date
+# Geographic centers (lat, lon) of each 2026 Carols Area for nearest-area fallback matching
+_AREA_CENTERS_2026: list[tuple[str, str, float, float]] = [
+    ("BG", "Buffalo Grove", 42.1663, -87.9631),
+    ("2026-12-02", "Mount Prospect", 42.0664, -87.9373),
+    ("2026-12-04", "Arlington Heights", 42.0884, -87.9806),
+    ("2026-12-05", "Elgin", 42.0354, -88.2826),
+    ("2026-12-08", "Schaumburg", 42.0334, -88.0834),
+    ("2026-12-09", "Palatine", 42.1103, -88.0342),
+    ("2026-12-11", "Hawthorn Woods / Vernon Hills", 42.2280, -88.0150),
+    ("2026-12-15", "Gurnee", 42.3703, -87.9020),
+    ("2026-12-16", "Hoffman Estates", 42.0630, -88.1227),
+]
+
+MAX_PROXIMITY_MILES = 30.0
+
+# Map exact Chicagoland cities (lowercase) to an area key or ISO date
 _CITY_TO_2026_TARGET: dict[str, str] = {
-    # Buffalo Grove (2 nights: Dec 2 Wed & Dec 12 Sat)
+    # Buffalo Grove (2 nights: Tue Dec 1 & Sat Dec 12)
     "buffalo grove": "BG",
     "wheeling": "BG",
     "riverwoods": "BG",
-    # Mount Prospect (Dec 4 Fri)
-    "mount prospect": "2026-12-04",
-    "mt prospect": "2026-12-04",
-    "mt. prospect": "2026-12-04",
-    "des plaines": "2026-12-04",
-    "prospect heights": "2026-12-04",
-    "park ridge": "2026-12-04",
-    "niles": "2026-12-04",
-    "glenview": "2026-12-04",
-    "morton grove": "2026-12-04",
-    "skokie": "2026-12-04",
-    "evanston": "2026-12-04",
-    "northbrook": "2026-12-04",
-    "chicago": "2026-12-04",
-    # Arlington Heights (Dec 5 Sat)
-    "arlington heights": "2026-12-05",
-    "rolling meadows": "2026-12-05",
-    "elk grove village": "2026-12-05",
-    "elk grove": "2026-12-05",
-    "itasca": "2026-12-05",
-    "wood dale": "2026-12-05",
-    "bensenville": "2026-12-05",
-    # Elgin (Dec 8 Tue)
-    "elgin": "2026-12-08",
-    "south elgin": "2026-12-08",
-    "bartlett": "2026-12-08",
-    "east dundee": "2026-12-08",
-    "west dundee": "2026-12-08",
-    "carpentersville": "2026-12-08",
-    "algonquin": "2026-12-08",
-    "lake in the hills": "2026-12-08",
-    "huntley": "2026-12-08",
-    "pingree grove": "2026-12-08",
-    "gilberts": "2026-12-08",
-    "hampshire": "2026-12-08",
-    "st. charles": "2026-12-08",
-    "st charles": "2026-12-08",
-    "saint charles": "2026-12-08",
-    "geneva": "2026-12-08",
-    "batavia": "2026-12-08",
-    # Schaumburg (Dec 9 Wed)
-    "schaumburg": "2026-12-09",
-    "roselle": "2026-12-09",
-    "bloomingdale": "2026-12-09",
-    "medinah": "2026-12-09",
-    "hanover park": "2026-12-09",
-    "glendale heights": "2026-12-09",
-    "carol stream": "2026-12-09",
-    "addison": "2026-12-09",
-    "elmhurst": "2026-12-09",
-    "lombard": "2026-12-09",
-    "glen ellyn": "2026-12-09",
-    "wheaton": "2026-12-09",
-    "winfield": "2026-12-09",
-    "warrenville": "2026-12-09",
-    "naperville": "2026-12-09",
-    "aurora": "2026-12-09",
-    "north aurora": "2026-12-09",
-    "lisle": "2026-12-09",
-    "downers grove": "2026-12-09",
-    "bolingbrook": "2026-12-09",
-    # Hawthorn Woods / Vernon Hills (Dec 11 Fri)
+    # Mount Prospect (Wed Dec 2)
+    "mount prospect": "2026-12-02",
+    "mt prospect": "2026-12-02",
+    "mt. prospect": "2026-12-02",
+    "des plaines": "2026-12-02",
+    "prospect heights": "2026-12-02",
+    "park ridge": "2026-12-02",
+    "niles": "2026-12-02",
+    "glenview": "2026-12-02",
+    "morton grove": "2026-12-02",
+    "skokie": "2026-12-02",
+    "evanston": "2026-12-02",
+    "northbrook": "2026-12-02",
+    "chicago": "2026-12-02",
+    # Arlington Heights (Fri Dec 4)
+    "arlington heights": "2026-12-04",
+    "rolling meadows": "2026-12-04",
+    "elk grove village": "2026-12-04",
+    "elk grove": "2026-12-04",
+    "itasca": "2026-12-04",
+    "wood dale": "2026-12-04",
+    "bensenville": "2026-12-04",
+    # Elgin (Sat Dec 5)
+    "elgin": "2026-12-05",
+    "south elgin": "2026-12-05",
+    "bartlett": "2026-12-05",
+    "east dundee": "2026-12-05",
+    "west dundee": "2026-12-05",
+    "carpentersville": "2026-12-05",
+    "algonquin": "2026-12-05",
+    "lake in the hills": "2026-12-05",
+    "huntley": "2026-12-05",
+    "pingree grove": "2026-12-05",
+    "gilberts": "2026-12-05",
+    "hampshire": "2026-12-05",
+    "st. charles": "2026-12-05",
+    "st charles": "2026-12-05",
+    "saint charles": "2026-12-05",
+    "geneva": "2026-12-05",
+    "batavia": "2026-12-05",
+    # Schaumburg (Tue Dec 8)
+    "schaumburg": "2026-12-08",
+    "roselle": "2026-12-08",
+    "bloomingdale": "2026-12-08",
+    "medinah": "2026-12-08",
+    "hanover park": "2026-12-08",
+    "glendale heights": "2026-12-08",
+    "carol stream": "2026-12-08",
+    "addison": "2026-12-08",
+    "elmhurst": "2026-12-08",
+    "lombard": "2026-12-08",
+    "glen ellyn": "2026-12-08",
+    "wheaton": "2026-12-08",
+    "winfield": "2026-12-08",
+    "warrenville": "2026-12-08",
+    "naperville": "2026-12-08",
+    "aurora": "2026-12-08",
+    "north aurora": "2026-12-08",
+    "lisle": "2026-12-08",
+    "downers grove": "2026-12-08",
+    "bolingbrook": "2026-12-08",
+    # Palatine (Wed Dec 9)
+    "palatine": "2026-12-09",
+    "inverness": "2026-12-09",
+    "barrington": "2026-12-09",
+    "south barrington": "2026-12-09",
+    "north barrington": "2026-12-09",
+    "lake barrington": "2026-12-09",
+    "deer park": "2026-12-09",
+    # Hawthorn Woods / Vernon Hills (Fri Dec 11)
     "hawthorn woods": "2026-12-11",
     "vernon hills": "2026-12-11",
     "lake zurich": "2026-12-11",
@@ -720,82 +753,77 @@ _CITY_TO_2026_TARGET: dict[str, str] = {
     "island lake": "2026-12-11",
     "cary": "2026-12-11",
     "crystal lake": "2026-12-11",
-    # Palatine (Dec 15 Tue)
-    "palatine": "2026-12-15",
-    "inverness": "2026-12-15",
-    "barrington": "2026-12-15",
-    "south barrington": "2026-12-15",
-    "north barrington": "2026-12-15",
-    "lake barrington": "2026-12-15",
-    "deer park": "2026-12-15",
-    # Gurnee (Dec 16 Wed)
-    "gurnee": "2026-12-16",
-    "grayslake": "2026-12-16",
-    "hainesville": "2026-12-16",
-    "round lake": "2026-12-16",
-    "round lake beach": "2026-12-16",
-    "round lake park": "2026-12-16",
-    "round lake heights": "2026-12-16",
-    "waukegan": "2026-12-16",
-    "park city": "2026-12-16",
-    "north chicago": "2026-12-16",
-    "wadsworth": "2026-12-16",
-    "lindenhurst": "2026-12-16",
-    "lake villa": "2026-12-16",
-    "antioch": "2026-12-16",
-    "fox lake": "2026-12-16",
-    "zion": "2026-12-16",
-    "beach park": "2026-12-16",
-    # Hoffman Estates (Dec 17 Thu)
-    "hoffman estates": "2026-12-17",
-    "streamwood": "2026-12-17",
+    # Gurnee (Tue Dec 15)
+    "gurnee": "2026-12-15",
+    "grayslake": "2026-12-15",
+    "hainesville": "2026-12-15",
+    "round lake": "2026-12-15",
+    "round lake beach": "2026-12-15",
+    "round lake park": "2026-12-15",
+    "round lake heights": "2026-12-15",
+    "waukegan": "2026-12-15",
+    "park city": "2026-12-15",
+    "north chicago": "2026-12-15",
+    "wadsworth": "2026-12-15",
+    "lindenhurst": "2026-12-15",
+    "lake villa": "2026-12-15",
+    "antioch": "2026-12-15",
+    "fox lake": "2026-12-15",
+    "zion": "2026-12-15",
+    "beach park": "2026-12-15",
+    # Hoffman Estates (Wed Dec 16)
+    "hoffman estates": "2026-12-16",
+    "streamwood": "2026-12-16",
 }
 
 _ZIP_TO_2026_TARGET: dict[str, str] = {
     "60089": "BG",
     "60090": "BG",
-    "60056": "2026-12-04",
-    "60016": "2026-12-04",
-    "60018": "2026-12-04",
-    "60070": "2026-12-04",
-    "60068": "2026-12-04",
-    "60714": "2026-12-04",
-    "60025": "2026-12-04",
-    "60026": "2026-12-04",
-    "60076": "2026-12-04",
-    "60062": "2026-12-04",
-    "60004": "2026-12-05",
-    "60005": "2026-12-05",
-    "60008": "2026-12-05",
-    "60007": "2026-12-05",
-    "60143": "2026-12-05",
-    "60191": "2026-12-05",
-    "60120": "2026-12-08",
-    "60123": "2026-12-08",
-    "60124": "2026-12-08",
-    "60177": "2026-12-08",
-    "60103": "2026-12-08",
-    "60118": "2026-12-08",
-    "60110": "2026-12-08",
-    "60102": "2026-12-08",
-    "60156": "2026-12-08",
-    "60142": "2026-12-08",
-    "60174": "2026-12-08",
-    "60134": "2026-12-08",
-    "60173": "2026-12-09",
-    "60193": "2026-12-09",
-    "60194": "2026-12-09",
-    "60195": "2026-12-09",
-    "60172": "2026-12-09",
-    "60108": "2026-12-09",
-    "60133": "2026-12-09",
-    "60139": "2026-12-09",
-    "60188": "2026-12-09",
-    "60101": "2026-12-09",
-    "60148": "2026-12-09",
-    "60540": "2026-12-09",
-    "60504": "2026-12-09",
-    "60505": "2026-12-09",
+    "60056": "2026-12-02",
+    "60016": "2026-12-02",
+    "60018": "2026-12-02",
+    "60070": "2026-12-02",
+    "60068": "2026-12-02",
+    "60714": "2026-12-02",
+    "60025": "2026-12-02",
+    "60026": "2026-12-02",
+    "60076": "2026-12-02",
+    "60062": "2026-12-02",
+    "60004": "2026-12-04",
+    "60005": "2026-12-04",
+    "60008": "2026-12-04",
+    "60007": "2026-12-04",
+    "60143": "2026-12-04",
+    "60191": "2026-12-04",
+    "60120": "2026-12-05",
+    "60123": "2026-12-05",
+    "60124": "2026-12-05",
+    "60177": "2026-12-05",
+    "60103": "2026-12-05",
+    "60118": "2026-12-05",
+    "60110": "2026-12-05",
+    "60102": "2026-12-05",
+    "60156": "2026-12-05",
+    "60142": "2026-12-05",
+    "60174": "2026-12-05",
+    "60134": "2026-12-05",
+    "60173": "2026-12-08",
+    "60193": "2026-12-08",
+    "60194": "2026-12-08",
+    "60195": "2026-12-08",
+    "60172": "2026-12-08",
+    "60108": "2026-12-08",
+    "60133": "2026-12-08",
+    "60139": "2026-12-08",
+    "60188": "2026-12-08",
+    "60101": "2026-12-08",
+    "60148": "2026-12-08",
+    "60540": "2026-12-08",
+    "60504": "2026-12-08",
+    "60505": "2026-12-08",
+    "60067": "2026-12-09",
+    "60074": "2026-12-09",
+    "60010": "2026-12-09",
     "60047": "2026-12-11",
     "60061": "2026-12-11",
     "60060": "2026-12-11",
@@ -803,49 +831,131 @@ _ZIP_TO_2026_TARGET: dict[str, str] = {
     "60069": "2026-12-11",
     "60015": "2026-12-11",
     "60084": "2026-12-11",
-    "60067": "2026-12-15",
-    "60074": "2026-12-15",
-    "60010": "2026-12-15",
-    "60031": "2026-12-16",
-    "60030": "2026-12-16",
-    "60073": "2026-12-16",
-    "60085": "2026-12-16",
-    "60087": "2026-12-16",
-    "60046": "2026-12-16",
-    "60002": "2026-12-16",
-    "60020": "2026-12-16",
-    "60099": "2026-12-16",
-    "60169": "2026-12-17",
-    "60192": "2026-12-17",
-    "60107": "2026-12-17",
+    "60031": "2026-12-15",
+    "60030": "2026-12-15",
+    "60073": "2026-12-15",
+    "60085": "2026-12-15",
+    "60087": "2026-12-15",
+    "60046": "2026-12-15",
+    "60002": "2026-12-15",
+    "60020": "2026-12-15",
+    "60099": "2026-12-15",
+    "60169": "2026-12-16",
+    "60192": "2026-12-16",
+    "60107": "2026-12-16",
 }
 
 
+def _haversine_miles(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    earth_radius_miles = 3958.8
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dp = math.radians(lat2 - lat1)
+    dl = math.radians(lon2 - lon1)
+    a = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
+    return 2 * earth_radius_miles * math.asin(math.sqrt(a))
+
+
+def _ssl_context() -> ssl.SSLContext:
+    if certifi is not None:
+        return ssl.create_default_context(cafile=certifi.where())
+    return ssl.create_default_context()
+
+
+def _geocode_us_address(
+    street: Optional[str],
+    city: Optional[str],
+    state: Optional[str],
+    zipcode: Optional[str],
+) -> Optional[tuple[float, float]]:
+    """Geocode a US address to (latitude, longitude) using US Census Geocoder with Nominatim fallback."""
+    ctx = _ssl_context()
+    full_line = ", ".join([p.strip() for p in [street or "", city or "", state or "IL", zipcode or ""] if p and p.strip()])
+
+    # 1. Try official US Census street-level geocoder (free, no key, rooftop accuracy)
+    if street and (city or zipcode):
+        try:
+            census_url = (
+                "https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?"
+                + urllib.parse.urlencode(
+                    {
+                        "address": full_line,
+                        "benchmark": "Public_AR_Current",
+                        "format": "json",
+                    }
+                )
+            )
+            req = urllib.request.Request(census_url, headers={"User-Agent": "CICCarolsTracker/1.0"})
+            with urllib.request.urlopen(req, timeout=3.5, context=ctx) as resp:
+                payload = json.loads(resp.read().decode("utf-8"))
+                matches = payload.get("result", {}).get("addressMatches", [])
+                if matches:
+                    coords = matches[0].get("coordinates", {})
+                    if "y" in coords and "x" in coords:
+                        return float(coords["y"]), float(coords["x"])
+        except Exception:
+            pass
+
+    # 2. Fallback to OpenStreetMap Nominatim (city + state + zipcode or full line)
+    for query in [
+        ", ".join([p.strip() for p in [city or "", state or "IL", zipcode or ""] if p and p.strip()]),
+        full_line,
+    ]:
+        if not query:
+            continue
+        try:
+            nom_url = "https://nominatim.openstreetmap.org/search?" + urllib.parse.urlencode(
+                {
+                    "q": query,
+                    "format": "json",
+                    "limit": 1,
+                    "countrycodes": "us",
+                }
+            )
+            req = urllib.request.Request(nom_url, headers={"User-Agent": "CICCarolsTracker/1.0"})
+            with urllib.request.urlopen(req, timeout=3.5, context=ctx) as resp:
+                rows = json.loads(resp.read().decode("utf-8"))
+                if rows:
+                    return float(rows[0]["lat"]), float(rows[0]["lon"])
+        except Exception:
+            continue
+
+    return None
+
+
 def _resolve_buffalo_grove_date() -> str:
-    """Place first 8 Buffalo Grove homes on Wed Dec 2, then Sat Dec 12."""
+    """Place first 8 Buffalo Grove homes on Tue Dec 1, then Sat Dec 12."""
     try:
-        dec2_stops = data_source.get_stops(date="2026-12-02")
-        if len(dec2_stops) < 8:
-            return "2026-12-02"
+        dec1_stops = data_source.get_stops(date="2026-12-01")
+        if len(dec1_stops) < 8:
+            return "2026-12-01"
         return "2026-12-12"
     except Exception:
-        return "2026-12-02"
+        return "2026-12-01"
 
 
 def _auto_assign_carols_date(
     city: Optional[str],
     zipcode: Optional[str],
     preferred_date: Optional[str] = None,
-) -> tuple[Optional[str], Optional[str]]:
-    """Return (date_iso, weekday_name) matched from preferred_date, city, or zipcode."""
+    street: Optional[str] = None,
+    state: Optional[str] = "IL",
+) -> tuple[Optional[str], Optional[str], Optional[float]]:
+    """Return (date_iso, weekday_name, proximity_miles).
+
+    1. Honors explicit `preferred_date` if chosen by user.
+    2. Checks exact Chicagoland city / zipcode map.
+    3. If unknown town/zip, geocodes address and picks geographically closest Carols Area
+       if within MAX_PROXIMITY_MILES (30 mi). Otherwise leaves date=None for organizer review.
+    """
     if preferred_date:
         try:
             d = datetime.strptime(preferred_date.strip(), "%Y-%m-%d").date()
-            return preferred_date.strip(), d.strftime("%A")
+            return preferred_date.strip(), d.strftime("%A"), None
         except ValueError:
             pass
 
     target: Optional[str] = None
+    proximity_miles: Optional[float] = None
     if city:
         norm_city = re.sub(r"\s+", " ", city.strip().lower())
         target = _CITY_TO_2026_TARGET.get(norm_city)
@@ -854,13 +964,27 @@ def _auto_assign_carols_date(
         if len(zip5) == 5:
             target = _ZIP_TO_2026_TARGET.get(zip5)
 
+    # Layer 2: Live geocoding + nearest-area distance fallback for neighboring/unlisted towns
+    if not target and (city or zipcode or street):
+        coords = _geocode_us_address(street=street, city=city, state=state, zipcode=zipcode)
+        if coords is not None:
+            lat, lon = coords
+            ranked = sorted(
+                (_haversine_miles(lat, lon, area_lat, area_lon), area_key)
+                for area_key, _area_name, area_lat, area_lon in _AREA_CENTERS_2026
+            )
+            best_dist, best_key = ranked[0]
+            if best_dist <= MAX_PROXIMITY_MILES:
+                target = best_key
+                proximity_miles = round(best_dist, 1)
+
     if target == "BG":
         target = _resolve_buffalo_grove_date()
 
     if target:
         d = datetime.strptime(target, "%Y-%m-%d").date()
-        return target, d.strftime("%A")
-    return None, None
+        return target, d.strftime("%A"), proximity_miles
+    return None, None, None
 
 
 def _season_year() -> int:
@@ -973,14 +1097,34 @@ def schedule() -> str:  # pragma: no cover - UI entrypoint
                 "stops": annotated,
             }
         )
-    unscheduled_count = sum(1 for s in all_stops if not s.date and (s.address or "").strip())
     using_postgres = isinstance(data_source, PostgresDataSource)
+    unscheduled_stops = (
+        [s for s in all_stops if not s.date and (s.address or "").strip()]
+        if using_postgres
+        else []
+    )
+    if unscheduled_stops:
+        annotated_unscheduled = _annotate_stops(unscheduled_stops, reference_time)
+        schedule_blocks.append(
+            {
+                "id": "unassigned",
+                "display": "Needs Review",
+                "full_display": "Pending Area Assignment",
+                "day": "TBD",
+                "date": "unassigned",
+                "city": "Outside 30 mi / Custom",
+                "santa": None,
+                "count": len(annotated_unscheduled),
+                "stops": annotated_unscheduled,
+                "is_unscheduled": True,
+            }
+        )
     return render_template(
         "schedule.html",
         schedule_blocks=schedule_blocks,
         using_postgres=using_postgres,
         season_year=season_year,
-        unscheduled_count=unscheduled_count,
+        unscheduled_count=len(unscheduled_stops),
     )
 
 
@@ -1165,10 +1309,12 @@ def registration() -> str:
                     else:
                         referral_val = "Carols-CIC"
 
-                    assigned_date, assigned_day = _auto_assign_carols_date(
+                    assigned_date, assigned_day, proximity_miles = _auto_assign_carols_date(
                         city=city,
                         zipcode=zipcode,
                         preferred_date=preferred_date,
+                        street=street,
+                        state=state,
                     )
 
                     data_source.add_stop(
@@ -1190,14 +1336,20 @@ def registration() -> str:
                         pretty_date = date.fromisoformat(assigned_date).strftime("%A, %b %-d")
                         area_label = CAROLS_2026_AREA_MAP.get(assigned_date, city or "")
                         area_suffix = f" ({area_label})" if area_label else ""
-                        message = (
-                            f"Thank you! Your home has been registered and added to the Carols Schedule "
-                            f"for {pretty_date}{area_suffix}."
-                        )
+                        if proximity_miles is not None and area_label:
+                            message = (
+                                f"Thank you! Based on proximity (~{proximity_miles} mi from {area_label}), "
+                                f"your home has been added to the Carols Schedule for {pretty_date}{area_suffix}."
+                            )
+                        else:
+                            message = (
+                                f"Thank you! Your home has been registered and added to the Carols Schedule "
+                                f"for {pretty_date}{area_suffix}."
+                            )
                     else:
                         message = (
                             "Thank you! Your home address has been registered for a Christmas Carols visit. "
-                            "Our team will assign your Carols visit night shortly!"
+                            "Our team will review your location and assign the closest Carols night shortly!"
                         )
                 except Exception as exc:
                     error = f"Failed to submit registration: {exc}"

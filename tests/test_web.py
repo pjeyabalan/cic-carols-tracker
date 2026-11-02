@@ -66,13 +66,57 @@ def test_registration_post_persists_full_address(monkeypatch) -> None:
         email="daniel@example.com",
         prayer_request="Health and blessings for 2027",
         zipcode="60193",
-        day="Wednesday",
-        date="2026-12-09",
+        day="Tuesday",
+        date="2026-12-08",
         scheduled_time=None,
         visit_order=None,
         address_visited=False,
         referral="Benny-CIC",
     )
+
+
+def test_registration_unknown_city_matches_nearest_area_by_proximity(monkeypatch) -> None:
+    fake_pg = MagicMock(spec=PostgresDataSource)
+    fake_pg.add_stop.return_value = 99
+    fake_pg.get_stops.return_value = []
+    monkeypatch.setattr(web_mod, "data_source", fake_pg)
+    # Simulate geocoded coordinates for Third Lake, IL (~5.6 mi from Gurnee)
+    monkeypatch.setattr(web_mod, "_geocode_us_address", lambda **kw: (42.3575, -87.9881))
+
+    client = app.test_client()
+    response = client.post(
+        "/registration",
+        data={
+            "first_name": "Grace",
+            "last_name": "Mathew",
+            "address": "100 Lakeview Dr",
+            "city": "Third Lake",
+            "state": "IL",
+            "zipcode": "60099",
+            "phone": "(847) 555-9999",
+        },
+    )
+    # Note: 60099 is in exact zip map, so pass an unlisted zip to exercise geocoding layer
+    fake_pg.add_stop.reset_mock()
+    response = client.post(
+        "/registration",
+        data={
+            "first_name": "Grace",
+            "last_name": "Mathew",
+            "address": "100 Lakeview Dr",
+            "city": "Third Lake",
+            "state": "IL",
+            "zipcode": "60000",
+            "phone": "(847) 555-9999",
+        },
+    )
+    assert response.status_code == 200
+    assert b"Based on proximity" in response.data
+    assert b"Gurnee" in response.data
+    fake_pg.add_stop.assert_called_once()
+    kwargs = fake_pg.add_stop.call_args.kwargs
+    assert kwargs["date"] == "2026-12-15"
+    assert kwargs["day"] == "Tuesday"
 
 
 def test_schedule_displays_2026_areas_and_house_counts(monkeypatch) -> None:
@@ -86,12 +130,12 @@ def test_schedule_displays_2026_areas_and_house_counts(monkeypatch) -> None:
                 family_members=[],
                 address="742 Evergreen Terrace, Schaumburg, IL",
                 zipcode="60193",
-                date="2026-12-09",
-                day="Wednesday",
+                date="2026-12-08",
+                day="Tuesday",
                 referral="Carols-CIC",
             )
         ]
-        if date in (None, "2026-12-09")
+        if date in (None, "2026-12-08")
         else []
     )
     monkeypatch.setattr(web_mod, "data_source", fake_pg)
@@ -112,8 +156,9 @@ def test_schedule_displays_2026_areas_and_house_counts(monkeypatch) -> None:
     ]:
         assert area in resp.data
     assert b"1 house" in resp.data
-    assert b"2026-12-17" in resp.data
-    assert b"2026-12-18" not in resp.data
+    assert b"2026-12-01" in resp.data
+    assert b"2026-12-16" in resp.data
+    assert b"2026-12-17" not in resp.data
 
 
 def test_registrations_list_and_full_backup_export(monkeypatch) -> None:
