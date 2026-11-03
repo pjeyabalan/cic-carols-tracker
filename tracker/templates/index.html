@@ -210,6 +210,30 @@
         border: 1px solid rgba(239, 68, 68, 0.35);
         color: #b91c1c;
       }
+      .eta-chip {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.25rem 0.65rem;
+        border-radius: 999px;
+        font-size: 0.76rem;
+        font-weight: 700;
+        background: #eff6ff;
+        border: 1px solid #bfdbfe;
+        color: #1d4ed8;
+      }
+      .live-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.15rem 0.6rem;
+        border-radius: 999px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        background: rgba(34, 197, 94, 0.18);
+        border: 1px solid rgba(34, 197, 94, 0.45);
+        color: #bbf7d0;
+        margin-left: 0.4rem;
+      }
       details summary {
         cursor: pointer;
         font-weight: 600;
@@ -511,7 +535,8 @@
         Visited (all days): {{ visited_total }} / {{ total_houses }}
       </p>
       <p style="margin:0.1rem 0 0; font-weight:700; color:#f8fafc;">
-        Visited today: {{ visited_today }} / {{ total_today }}
+        Visited today: <span id="visited-today-val">{{ visited_today }}</span> / <span id="total-today-val">{{ total_today }}</span>
+        <span class="live-pill" id="live-stream-badge" title="Real-time Server-Sent Events telemetry">● Live</span>
       </p>
   </header>
     <main>
@@ -540,9 +565,14 @@
                   style="padding:0.2rem 0.6rem; font-size:0.75rem; background: linear-gradient(135deg, #22c55e, #3b82f6);"
                 >WhatsApp Copy</button>
               </p>
-              <span class="status-chip {% if entry.status == 'done' %}status-done{% elif entry.is_current %}status-current{% else %}status-pending{% endif %}">
-                {{ entry.badge }}
-              </span>
+              <div style="display:flex; align-items:center; gap:0.45rem; flex-wrap:wrap;">
+                <span class="status-chip {% if entry.status == 'done' %}status-done{% elif entry.is_current %}status-current{% else %}status-pending{% endif %}">
+                  {{ 'Current Stop' if entry.is_current and entry.status != 'done' else entry.badge }}
+                </span>
+                <span class="eta-chip" data-eta {% if not entry.eta_display or entry.status == 'done' %}style="display:none;"{% endif %}>
+                  {% if entry.eta_display and entry.status != 'done' %}Est. {{ entry.eta_display }}{% endif %}
+                </span>
+              </div>
               <p style="margin:0.2rem 0 0; font-weight:600;">
                 Address:
                 <a href="https://www.google.com/maps/search/?api=1&query={{ (entry.stop.address ~ ' ' ~ (entry.stop.zipcode or '')) | urlencode }}" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;">
@@ -747,56 +777,127 @@
         let targetIndex = null;
         let animating = false;
 
-        const applyClasses = (visitedFlags, currentIdx) => {
+        const applyClasses = (visitedFlags, currentIdx, etas) => {
           stopMarkers.forEach((el, i) => {
+            const isDone = !!visitedFlags[i];
+            const isCurr = !isDone && i === currentIdx;
             el.classList.remove('done', 'current', 'pending');
-            if (visitedFlags[i]) el.classList.add('done');
-            else if (i === currentIdx) el.classList.add('current');
+            if (isDone) el.classList.add('done');
+            else if (isCurr) el.classList.add('current');
             else el.classList.add('pending');
+
+            const chip = el.querySelector('.status-chip');
+            if (chip) {
+              chip.classList.remove('status-done', 'status-current', 'status-pending');
+              if (isDone) {
+                chip.classList.add('status-done');
+                chip.textContent = 'Completed';
+              } else if (isCurr) {
+                chip.classList.add('status-current');
+                chip.textContent = 'Current Stop';
+              } else {
+                chip.classList.add('status-pending');
+                chip.textContent = 'Upcoming';
+              }
+            }
+
+            const etaEl = el.querySelector('[data-eta]');
+            if (etaEl && Array.isArray(etas)) {
+              const etaVal = etas[i];
+              if (!isDone && etaVal) {
+                etaEl.textContent = `Est. ${etaVal}`;
+                etaEl.style.display = 'inline-flex';
+              } else {
+                etaEl.style.display = 'none';
+              }
+            }
+
             const details = el.querySelector('details');
-            if (details) details.open = (i === currentIdx);
+            if (details) details.open = isCurr;
           });
+        };
+
+        const applyTelemetryPayload = (data) => {
+          if (!data) return;
+          const currentIdx = data.current_index;
+          const visitedFlags = data.visited || [];
+          const etas = data.etas || [];
+          applyClasses(visitedFlags, currentIdx ?? -1, etas);
+
+          const vTodayEl = document.getElementById('visited-today-val');
+          const tTodayEl = document.getElementById('total-today-val');
+          if (vTodayEl && typeof data.visited_today === 'number') {
+            vTodayEl.textContent = String(data.visited_today);
+          }
+          if (tTodayEl && typeof data.total_today === 'number') {
+            tTodayEl.textContent = String(data.total_today);
+          }
+
+          if (currentIdx !== lastIndex) {
+            lastIndex = currentIdx;
+            targetIndex = currentIdx;
+            if (targetIndex === null || targetIndex === undefined) {
+              santa.style.transition = 'top 2s ease-in-out';
+              moveSanta(0);
+              return;
+            }
+            const positions = getPositions();
+            const pos = positions[Math.max(0, Math.min(targetIndex, positions.length - 1))];
+            santa.style.transition = 'top 2.2s ease-in-out';
+            moveSanta(pos);
+          }
+        };
+
+        const buildQuery = () => {
+          const params = new URLSearchParams();
+          if (day) params.set('day', day);
+          if (dateIso) params.set('date', dateIso);
+          return params.toString();
         };
 
         const pollStatus = async () => {
           try {
-            const params = new URLSearchParams();
-            if (day) params.set('day', day);
-            if (dateIso) params.set('date', dateIso);
-            const res = await fetch(`/api/tracker_status?${params.toString()}`, { cache: 'no-store' });
+            const res = await fetch(`/api/tracker_status?${buildQuery()}`, { cache: 'no-store' });
             if (!res.ok) return;
             const data = await res.json();
-            const currentIdx = data.current_index;
-            const visitedFlags = data.visited || [];
-            applyClasses(visitedFlags, currentIdx ?? -1);
-            // Set new target only when index changes
-            if (currentIdx !== lastIndex) {
-              lastIndex = currentIdx;
-              targetIndex = currentIdx;
-              if (targetIndex === null || targetIndex === undefined) {
-                // All done → move to top
-                const positions = getPositions();
-                santa.style.transition = 'top 2s ease-in-out';
-                moveSanta(0);
-                return;
-              }
-              const positions = getPositions();
-              const pos = positions[Math.max(0, Math.min(targetIndex, positions.length - 1))];
-              santa.style.transition = 'top 3s ease-in-out';
-              moveSanta(pos);
-            }
+            applyTelemetryPayload(data);
           } catch (e) {
             // ignore network errors
           }
         };
 
-        // Initialize position and start polling
+        // Initialize position
         requestAnimationFrame(() => {
           santa.style.top = '0px';
         });
-  // Poll server every 1 minute to reduce load
-  setInterval(pollStatus, 60000);
-        // Trigger immediately
+
+        // Connect to real-time Server-Sent Events (SSE) stream with automatic polling fallback
+        const liveBadge = document.getElementById('live-stream-badge');
+        let sseActive = false;
+        if ('EventSource' in window) {
+          try {
+            const es = new EventSource(`/api/stream/tracker?${buildQuery()}`);
+            es.onmessage = (evt) => {
+              try {
+                const msg = JSON.parse(evt.data);
+                if (msg && msg.data) {
+                  sseActive = true;
+                  if (liveBadge) liveBadge.textContent = '● Live';
+                  applyTelemetryPayload(msg.data);
+                }
+              } catch (_) {}
+            };
+            es.onerror = () => {
+              sseActive = false;
+              if (liveBadge) liveBadge.textContent = '● Syncing';
+            };
+          } catch (_) {
+            sseActive = false;
+          }
+        }
+        setInterval(() => {
+          if (!sseActive) pollStatus();
+        }, 45000);
         pollStatus();
       }
     </script>

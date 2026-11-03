@@ -8,9 +8,10 @@ import math
 import os
 import re
 import ssl
+import threading
 import urllib.parse
 import urllib.request
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
 from typing import Iterable, Optional
@@ -21,15 +22,35 @@ try:
 except ImportError:  # pragma: no cover
     certifi = None  # type: ignore[assignment]
 
-from flask import Flask, jsonify, make_response, redirect, render_template, request, url_for
+from flask import (
+    Flask,
+    Response,
+    jsonify,
+    make_response,
+    redirect,
+    render_template,
+    request,
+    stream_with_context,
+    url_for,
+)
 
 from tracker.data_sources import (
     CarolsStop,
     CsvDataSource,
     PostgresDataSource,
+    normalize_address_key,
     resolve_pg_dsn,
 )
-from tracker.gps import Coordinate, RoutePlan, simulate_live_updates, simulate_route
+from tracker.events import event_bus
+from tracker.gps import (
+    Coordinate,
+    RoutePlan,
+    cluster_two_teams,
+    forecast_dynamic_etas,
+    optimize_route_2opt,
+    simulate_live_updates,
+    simulate_route,
+)
 
 app = Flask(
     __name__,
@@ -61,6 +82,7 @@ def delete_registration(item_id: int):
         return jsonify({"success": False, "error": "Deleting requires DATABASE_URL or PG_DSN."}), 400
     try:
         data_source.delete_stop_by_id(item_id)
+        event_bus.publish("stop_deleted", {"id": item_id})
         return jsonify({"success": True})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -167,6 +189,7 @@ class StopDisplay:
     badge: str
     css_class: str
     is_current: bool
+    eta_display: Optional[str] = None
 
 
 def _parse_hhmm(value: Optional[str]) -> Optional[time]:
@@ -181,6 +204,7 @@ def _parse_hhmm(value: Optional[str]) -> Optional[time]:
 def _annotate_stops(stops: Iterable[CarolsStop], reference: datetime) -> list[StopDisplay]:
     annotated: list[StopDisplay] = []
     sorted_stops = sorted(stops, key=_sort_key)
+    etas = forecast_dynamic_etas(sorted_stops, reference)
     # Determine the first unvisited index using address_visited when available; fallback to time
     first_pending_index = None
     for idx, stop in enumerate(sorted_stops):
@@ -204,6 +228,7 @@ def _annotate_stops(stops: Iterable[CarolsStop], reference: datetime) -> list[St
                 badge=badge,
                 css_class=css_class,
                 is_current=is_current,
+                eta_display=etas.get(idx),
             )
         )
     return annotated
@@ -303,6 +328,29 @@ def tracker() -> str:  # pragma: no cover - UI entrypoint for tracker
     if not stops and day:
         # Only honor explicit day filter when provided in query
         stops = data_source.get_stops(day=selected_day, time_window=time_window)
+
+    # Auto-render two-team view if any night was split into TEAM1 / TEAM2 (e.g., 2026-12-11)
+    if (
+        using_postgres
+        and request.args.get("view") != "single"
+        and any((s.referral or "").strip().upper() in {"TEAM1", "TEAM2"} for s in stops)
+    ):
+        team1_stops = sorted([s for s in stops if (s.referral or "").strip().upper() == "TEAM1"], key=_sort_key)
+        team2_stops = sorted([s for s in stops if (s.referral or "").strip().upper() == "TEAM2"], key=_sort_key)
+        other_stops = sorted(
+            [s for s in stops if (s.referral or "").strip().upper() not in {"TEAM1", "TEAM2"}],
+            key=_sort_key,
+        )
+        return render_template(
+            "tracker_special.html",
+            date_iso=target_date,
+            date_display=datetime.strptime(target_date, "%Y-%m-%d").strftime("%A, %b %d"),
+            team1=team1_stops,
+            team2=team2_stops,
+            others=other_stops,
+            others_target="team1" if len(team1_stops) >= len(team2_stops) else "team2",
+        )
+
     reference_time = today_dt
     display_stops = _annotate_stops(stops, reference_time)
 
@@ -399,6 +447,45 @@ def tracker_special() -> str:
     )
 
 
+def _build_tracker_status_payload(day: Optional[str], date_iso: Optional[str]) -> dict:
+    effective_day = day or _now_local().strftime("%A")
+    valid_date = date_iso or None
+    if valid_date:
+        try:
+            datetime.strptime(valid_date, "%Y-%m-%d")
+        except ValueError:
+            valid_date = None
+    try:
+        stops = (
+            data_source.get_stops(date=valid_date)
+            if valid_date
+            else data_source.get_stops(day=effective_day)
+        )
+    except TypeError:
+        stops = data_source.get_stops(day=effective_day)
+    ordered = sorted(stops, key=_sort_key)
+    visited_flags = [bool(s.address_visited) if s.address_visited is not None else False for s in ordered]
+    try:
+        current_index = next(i for i, v in enumerate(visited_flags) if not v)
+    except StopIteration:
+        current_index = None
+    eta_map = forecast_dynamic_etas(ordered, _now_local())
+    etas = [eta_map.get(i) for i in range(len(ordered))]
+    visited_today = sum(1 for v in visited_flags if v)
+    return {
+        "day": effective_day,
+        "date": valid_date,
+        "order_ids": [getattr(s, "id", None) for s in ordered],
+        "visit_order": [s.visit_order for s in ordered],
+        "visited": visited_flags,
+        "current_index": current_index,
+        "count": len(ordered),
+        "etas": etas,
+        "visited_today": visited_today,
+        "total_today": len(ordered),
+    }
+
+
 @app.route("/api/tracker_status")
 def api_tracker_status():
     """Lightweight status for the tracker UI to decide when to move Santa.
@@ -407,31 +494,31 @@ def api_tracker_status():
     """
     day = request.args.get("day") or _now_local().strftime("%A")
     date_iso = request.args.get("date") or None
-    if date_iso:
-        try:
-            datetime.strptime(date_iso, "%Y-%m-%d")
-        except ValueError:
-            date_iso = None
-    try:
-        stops = data_source.get_stops(date=date_iso) if date_iso else data_source.get_stops(day=day)
-    except TypeError:
-        stops = data_source.get_stops(day=day)
-    ordered = sorted(stops, key=_sort_key)
-    visited_flags = [bool(s.address_visited) if s.address_visited is not None else False for s in ordered]
-    try:
-        current_index = next(i for i, v in enumerate(visited_flags) if not v)
-    except StopIteration:
-        current_index = None
-    return jsonify(
-        {
-            "day": day,
-            "order_ids": [getattr(s, "id", None) for s in ordered],
-            "visit_order": [s.visit_order for s in ordered],
-            "visited": visited_flags,
-            "current_index": current_index,
-            "count": len(ordered),
-        }
-    )
+    return jsonify(_build_tracker_status_payload(day, date_iso))
+
+
+@app.route("/api/stream/tracker")
+def api_stream_tracker():
+    """Server-Sent Events (SSE) stream pushing real-time tracker telemetry on stop mutations."""
+    day = request.args.get("day") or _now_local().strftime("%A")
+    date_iso = request.args.get("date") or None
+
+    def generate():
+        initial = _build_tracker_status_payload(day, date_iso)
+        yield f"data: {json.dumps({'event': 'snapshot', 'data': initial})}\n\n"
+        for raw_chunk in event_bus.subscribe(heartbeat_seconds=20.0):
+            if raw_chunk.startswith(":"):
+                yield raw_chunk
+            else:
+                fresh = _build_tracker_status_payload(day, date_iso)
+                yield f"data: {json.dumps({'event': 'update', 'data': fresh})}\n\n"
+
+    headers = {
+        "Cache-Control": "no-cache, no-transform",
+        "X-Accel-Buffering": "no",
+        "Connection": "keep-alive",
+    }
+    return Response(stream_with_context(generate()), mimetype="text/event-stream", headers=headers)
 
 
 @app.route("/")
@@ -579,6 +666,8 @@ def backup_export_csv():
             "Visit Order",
             "Address Visited",
             "Referral",
+            "Latitude",
+            "Longitude",
         ]
     )
     for s in stops:
@@ -598,6 +687,8 @@ def backup_export_csv():
                 s.visit_order if s.visit_order is not None else "",
                 "true" if s.address_visited else "false",
                 s.referral or "church",
+                s.latitude if s.latitude is not None else "",
+                s.longitude if s.longitude is not None else "",
             ]
         )
     stamp = _now_local().strftime("%Y%m%d")
@@ -627,6 +718,8 @@ def backup_export_json():
             "visit_order": s.visit_order,
             "address_visited": bool(s.address_visited),
             "referral": s.referral,
+            "latitude": s.latitude,
+            "longitude": s.longitude,
         }
         for s in stops
     ]
@@ -933,29 +1026,24 @@ def _resolve_buffalo_grove_date() -> str:
         return "2026-12-01"
 
 
-def _auto_assign_carols_date(
+def _auto_assign_carols_date_with_coords(
     city: Optional[str],
     zipcode: Optional[str],
     preferred_date: Optional[str] = None,
     street: Optional[str] = None,
     state: Optional[str] = "IL",
-) -> tuple[Optional[str], Optional[str], Optional[float]]:
-    """Return (date_iso, weekday_name, proximity_miles).
-
-    1. Honors explicit `preferred_date` if chosen by user.
-    2. Checks exact Chicagoland city / zipcode map.
-    3. If unknown town/zip, geocodes address and picks geographically closest Carols Area
-       if within MAX_PROXIMITY_MILES (30 mi). Otherwise leaves date=None for organizer review.
-    """
+) -> tuple[Optional[str], Optional[str], Optional[float], Optional[tuple[float, float]]]:
+    """Return (date_iso, weekday_name, proximity_miles, geocoded_coords)."""
     if preferred_date:
         try:
             d = datetime.strptime(preferred_date.strip(), "%Y-%m-%d").date()
-            return preferred_date.strip(), d.strftime("%A"), None
+            return preferred_date.strip(), d.strftime("%A"), None, None
         except ValueError:
             pass
 
     target: Optional[str] = None
     proximity_miles: Optional[float] = None
+    geocoded_coords: Optional[tuple[float, float]] = None
     if city:
         norm_city = re.sub(r"\s+", " ", city.strip().lower())
         target = _CITY_TO_2026_TARGET.get(norm_city)
@@ -968,6 +1056,7 @@ def _auto_assign_carols_date(
     if not target and (city or zipcode or street):
         coords = _geocode_us_address(street=street, city=city, state=state, zipcode=zipcode)
         if coords is not None:
+            geocoded_coords = coords
             lat, lon = coords
             ranked = sorted(
                 (_haversine_miles(lat, lon, area_lat, area_lon), area_key)
@@ -983,8 +1072,81 @@ def _auto_assign_carols_date(
 
     if target:
         d = datetime.strptime(target, "%Y-%m-%d").date()
-        return target, d.strftime("%A"), proximity_miles
-    return None, None, None
+        return target, d.strftime("%A"), proximity_miles, geocoded_coords
+    return None, None, None, geocoded_coords
+
+
+def _auto_assign_carols_date(
+    city: Optional[str],
+    zipcode: Optional[str],
+    preferred_date: Optional[str] = None,
+    street: Optional[str] = None,
+    state: Optional[str] = "IL",
+) -> tuple[Optional[str], Optional[str], Optional[float]]:
+    """Return (date_iso, weekday_name, proximity_miles)."""
+    d_iso, d_name, prox, _coords = _auto_assign_carols_date_with_coords(
+        city=city,
+        zipcode=zipcode,
+        preferred_date=preferred_date,
+        street=street,
+        state=state,
+    )
+    return d_iso, d_name, prox
+
+
+def _async_geocode_stop(
+    item_id: Optional[int],
+    street: Optional[str],
+    city: Optional[str],
+    state: Optional[str],
+    zipcode: Optional[str],
+) -> None:
+    """Geocode newly added stop in a background daemon thread so form responses stay instant."""
+    if not isinstance(item_id, int) or type(data_source) is not PostgresDataSource:
+        return
+    pg_ref = data_source
+
+    def _worker() -> None:
+        try:
+            coords = _geocode_us_address(street=street, city=city, state=state, zipcode=zipcode)
+            if coords is not None:
+                pg_ref.update_stop_by_id(item_id, {"latitude": coords[0], "longitude": coords[1]})
+        except Exception:
+            pass
+
+    threading.Thread(target=_worker, daemon=True).start()
+
+
+def _ensure_stops_geocoded(stops: list[CarolsStop], max_lookups: int = 18) -> list[CarolsStop]:
+    """Ensure stops have cached (latitude, longitude) before running spatial route optimization."""
+    if not isinstance(data_source, PostgresDataSource):
+        return stops
+    result: list[CarolsStop] = []
+    lookups = 0
+    for stop in stops:
+        if stop.latitude is not None and stop.longitude is not None:
+            result.append(stop)
+            continue
+        if lookups < max_lookups and stop.address:
+            lookups += 1
+            street, city, state = _split_address_components(stop.address)
+            coords = _geocode_us_address(
+                street=street,
+                city=city,
+                state=state or "IL",
+                zipcode=stop.zipcode,
+            )
+            if coords is not None:
+                lat, lon = coords
+                if stop.id is not None:
+                    try:
+                        data_source.update_stop_by_id(stop.id, {"latitude": lat, "longitude": lon})
+                    except Exception:
+                        pass
+                result.append(replace(stop, latitude=lat, longitude=lon))
+                continue
+        result.append(stop)
+    return result
 
 
 def _season_year() -> int:
@@ -1146,13 +1308,17 @@ def api_toggle_visited(item_id: int):
         visited = True if raw in ("true", "t", "1", "yes", "on") else False
         data_source.update_stop_by_id(item_id, {"address_visited": visited})
         current = data_source.get_stop_by_id(item_id)
+        final_visited = (
+            bool(current.address_visited)
+            if isinstance(current, CarolsStop) and current.address_visited is not None
+            else visited
+        )
+        event_bus.publish("visited_toggled", {"id": item_id, "visited": final_visited})
         return jsonify(
             {
                 "ok": True,
                 "id": item_id,
-                "visited": bool(current.address_visited)
-                if current and current.address_visited is not None
-                else visited,
+                "visited": final_visited,
             }
         )
     except Exception as exc:
@@ -1167,6 +1333,7 @@ def api_delete_stop(item_id: int):
         return jsonify({"ok": False, "error": "Deleting requires DATABASE_URL or PG_DSN."}), 400
     try:
         data_source.delete_stop_by_id(item_id)
+        event_bus.publish("stop_deleted", {"id": item_id})
         return jsonify({"ok": True, "id": item_id})
     except Exception as exc:
         return jsonify({"ok": False, "error": f"Failed to delete: {exc}"}), 500
@@ -1208,9 +1375,114 @@ def api_reorder_schedule():
         date_val = payload.get("date") or None
         day_val = payload.get("day") or None
         data_source.reorder_stops(ids=ids, date=date_val, day=day_val)
+        event_bus.publish("schedule_reordered", {"date": date_val, "ids": ids})
         return jsonify({"ok": True, "count": len(ids)})
     except Exception as exc:
         return jsonify({"ok": False, "error": f"Failed to reorder: {exc}"}), 500
+
+
+@app.route("/api/schedule/optimize", methods=["POST"])
+def api_optimize_schedule():
+    """Optimize visit_order for a date using Nearest-Neighbor + 2-Opt TSP local search."""
+    using_postgres = isinstance(data_source, PostgresDataSource)
+    if not using_postgres:
+        return jsonify({"ok": False, "error": "Route optimization requires DATABASE_URL or PG_DSN."}), 400
+    try:
+        payload = request.get_json(force=True) or {}
+        date_val = (payload.get("date") or "").strip()
+        if not date_val:
+            return jsonify({"ok": False, "error": "date is required"}), 400
+        try:
+            datetime.strptime(date_val, "%Y-%m-%d")
+        except ValueError:
+            return jsonify({"ok": False, "error": "Invalid date format (use YYYY-MM-DD)"}), 400
+
+        raw_lock = payload.get("lock_last_id")
+        lock_last_id = int(raw_lock) if raw_lock is not None and str(raw_lock).isdigit() else None
+
+        stops = data_source.get_stops(date=date_val)
+        ordered_current = sorted(stops, key=_sort_key)
+        geocoded = _ensure_stops_geocoded(ordered_current)
+        optimized, baseline_miles, optimized_miles = optimize_route_2opt(
+            geocoded,
+            lock_last_id=lock_last_id,
+        )
+        order_ids = [s.id for s in optimized if s.id is not None]
+        if order_ids:
+            data_source.reorder_stops(ids=order_ids, date=date_val)
+        saved_miles = round(max(0.0, baseline_miles - optimized_miles), 2)
+        event_bus.publish(
+            "route_optimized",
+            {"date": date_val, "order_ids": order_ids, "saved_miles": saved_miles},
+        )
+        return jsonify(
+            {
+                "ok": True,
+                "date": date_val,
+                "count": len(order_ids),
+                "order_ids": order_ids,
+                "baseline_miles": baseline_miles,
+                "optimized_miles": optimized_miles,
+                "saved_miles": saved_miles,
+            }
+        )
+    except Exception as exc:
+        return jsonify({"ok": False, "error": f"Failed to optimize route: {exc}"}), 500
+
+
+@app.route("/api/schedule/split_teams", methods=["POST"])
+def api_split_teams():
+    """Partition a large Carols night into two balanced spatial clusters (TEAM1, TEAM2) with 2-Opt routes."""
+    using_postgres = isinstance(data_source, PostgresDataSource)
+    if not using_postgres:
+        return jsonify({"ok": False, "error": "Team splitting requires DATABASE_URL or PG_DSN."}), 400
+    try:
+        payload = request.get_json(force=True) or {}
+        date_val = (payload.get("date") or "").strip()
+        if not date_val:
+            return jsonify({"ok": False, "error": "date is required"}), 400
+        try:
+            datetime.strptime(date_val, "%Y-%m-%d")
+        except ValueError:
+            return jsonify({"ok": False, "error": "Invalid date format (use YYYY-MM-DD)"}), 400
+
+        stops = data_source.get_stops(date=date_val)
+        if len(stops) < 2:
+            return jsonify({"ok": False, "error": "Need at least 2 houses on this date to split into 2 teams."}), 400
+
+        geocoded = _ensure_stops_geocoded(sorted(stops, key=_sort_key))
+        team1, team2 = cluster_two_teams(geocoded)
+
+        order_val = 10
+        team1_ids: list[int] = []
+        team2_ids: list[int] = []
+        for s in team1:
+            if s.id is not None:
+                data_source.update_stop_by_id(s.id, {"referral": "TEAM1", "visit_order": order_val})
+                team1_ids.append(s.id)
+                order_val += 10
+        for s in team2:
+            if s.id is not None:
+                data_source.update_stop_by_id(s.id, {"referral": "TEAM2", "visit_order": order_val})
+                team2_ids.append(s.id)
+                order_val += 10
+
+        event_bus.publish(
+            "teams_split",
+            {"date": date_val, "team1_ids": team1_ids, "team2_ids": team2_ids},
+        )
+        return jsonify(
+            {
+                "ok": True,
+                "date": date_val,
+                "team1_count": len(team1_ids),
+                "team2_count": len(team2_ids),
+                "team1_ids": team1_ids,
+                "team2_ids": team2_ids,
+            }
+        )
+    except Exception as exc:
+        return jsonify({"ok": False, "error": f"Failed to split teams: {exc}"}), 500
 
 
 @app.route("/api/schedule/quick_add", methods=["POST"])  # pragma: no cover - AJAX quick add endpoint
@@ -1242,6 +1514,9 @@ def api_quick_add():
             address_visited=False,
             referral=referral,
         )
+        st_q, city_q, state_q = _split_address_components(address)
+        _async_geocode_stop(new_id, st_q, city_q, state_q, None)
+        event_bus.publish("stop_added", {"id": new_id, "date": date_val})
         return jsonify(
             {
                 "ok": True,
@@ -1263,7 +1538,8 @@ def registration() -> str:
 
     Collects family name, full home address (street, city, state, zipcode), phone number,
     optional email, family members, prayer request, and invited-by referral.
-    Automatically assigns the matching 2026 Carols Area Night so /schedule updates immediately.
+    Automatically assigns the matching 2026 Carols Area Night so /schedule updates immediately,
+    and deduplicates repeated submissions of the same street address idempotently.
     """
     using_postgres = isinstance(data_source, PostgresDataSource)
     message: Optional[str] = None
@@ -1309,48 +1585,94 @@ def registration() -> str:
                     else:
                         referral_val = "Carols-CIC"
 
-                    assigned_date, assigned_day, proximity_miles = _auto_assign_carols_date(
-                        city=city,
-                        zipcode=zipcode,
-                        preferred_date=preferred_date,
-                        street=street,
-                        state=state,
+                    assigned_date, assigned_day, proximity_miles, geocoded_coords = (
+                        _auto_assign_carols_date_with_coords(
+                            city=city,
+                            zipcode=zipcode,
+                            preferred_date=preferred_date,
+                            street=street,
+                            state=state,
+                        )
                     )
 
-                    data_source.add_stop(
-                        name=name,
-                        address=full_address,
-                        family_members=family_members,
-                        contact_number=phone,
-                        email=email,
-                        prayer_request=prayer_request,
-                        zipcode=zipcode,
-                        day=assigned_day,
-                        date=assigned_date,
-                        scheduled_time=None,
-                        visit_order=None,
-                        address_visited=False,
-                        referral=referral_val,
-                    )
-                    if assigned_date:
-                        pretty_date = date.fromisoformat(assigned_date).strftime("%A, %b %-d")
-                        area_label = CAROLS_2026_AREA_MAP.get(assigned_date, city or "")
-                        area_suffix = f" ({area_label})" if area_label else ""
-                        if proximity_miles is not None and area_label:
+                    # Idempotent deduplication: update existing home if same street address was already submitted
+                    existing = data_source.find_stop_by_normalized_address(full_address)
+                    if isinstance(existing, CarolsStop) and existing.id is not None:
+                        updates: dict = {"name": name, "contact_number": phone}
+                        if email:
+                            updates["email"] = email
+                        if family_members:
+                            updates["family_members"] = family_members
+                        if prayer_request:
+                            updates["prayer_request"] = prayer_request
+                        if zipcode:
+                            updates["zipcode"] = zipcode
+                        if geocoded_coords is not None:
+                            updates["latitude"] = geocoded_coords[0]
+                            updates["longitude"] = geocoded_coords[1]
+                        effective_date = existing.date
+                        if (not existing.date or preferred_date) and assigned_date:
+                            updates["date"] = assigned_date
+                            updates["day"] = assigned_day
+                            effective_date = assigned_date
+                        data_source.update_stop_by_id(existing.id, updates)
+                        event_bus.publish("registration_updated", {"id": existing.id, "date": effective_date})
+                        if effective_date:
+                            pretty_date = date.fromisoformat(effective_date).strftime("%A, %b %-d")
+                            area_label = CAROLS_2026_AREA_MAP.get(effective_date, city or "")
+                            area_suffix = f" ({area_label})" if area_label else ""
                             message = (
-                                f"Thank you! Based on proximity (~{proximity_miles} mi from {area_label}), "
-                                f"your home has been added to the Carols Schedule for {pretty_date}{area_suffix}."
+                                f"Your home address was already on the schedule for {pretty_date}{area_suffix} — "
+                                f"we updated your contact and family details without creating a duplicate!"
                             )
                         else:
                             message = (
-                                f"Thank you! Your home has been registered and added to the Carols Schedule "
-                                f"for {pretty_date}{area_suffix}."
+                                "Your home address was already registered — we updated your contact and family details!"
                             )
                     else:
-                        message = (
-                            "Thank you! Your home address has been registered for a Christmas Carols visit. "
-                            "Our team will review your location and assign the closest Carols night shortly!"
+                        extra_coords = (
+                            {"latitude": geocoded_coords[0], "longitude": geocoded_coords[1]}
+                            if geocoded_coords is not None
+                            else {}
                         )
+                        new_id = data_source.add_stop(
+                            name=name,
+                            address=full_address,
+                            family_members=family_members,
+                            contact_number=phone,
+                            email=email,
+                            prayer_request=prayer_request,
+                            zipcode=zipcode,
+                            day=assigned_day,
+                            date=assigned_date,
+                            scheduled_time=None,
+                            visit_order=None,
+                            address_visited=False,
+                            referral=referral_val,
+                            **extra_coords,
+                        )
+                        if geocoded_coords is None:
+                            _async_geocode_stop(new_id, street, city, state, zipcode)
+                        event_bus.publish("registration_created", {"id": new_id, "date": assigned_date})
+                        if assigned_date:
+                            pretty_date = date.fromisoformat(assigned_date).strftime("%A, %b %-d")
+                            area_label = CAROLS_2026_AREA_MAP.get(assigned_date, city or "")
+                            area_suffix = f" ({area_label})" if area_label else ""
+                            if proximity_miles is not None and area_label:
+                                message = (
+                                    f"Thank you! Based on proximity (~{proximity_miles} mi from {area_label}), "
+                                    f"your home has been added to the Carols Schedule for {pretty_date}{area_suffix}."
+                                )
+                            else:
+                                message = (
+                                    f"Thank you! Your home has been registered and added to the Carols Schedule "
+                                    f"for {pretty_date}{area_suffix}."
+                                )
+                        else:
+                            message = (
+                                "Thank you! Your home address has been registered for a Christmas Carols visit. "
+                                "Our team will review your location and assign the closest Carols night shortly!"
+                            )
                 except Exception as exc:
                     error = f"Failed to submit registration: {exc}"
     return render_template(
@@ -1401,7 +1723,7 @@ def add() -> str:
                     address = _compose_address(street_address, city, state or "IL")
                     referral = (request.form.get("referral") or "church").strip() or "church"
                     visit_order = int(visit_order_raw) if visit_order_raw.isdigit() else None
-                    data_source.add_stop(
+                    new_id = data_source.add_stop(
                         name=name,
                         address=address,
                         family_members=family_members,
@@ -1416,6 +1738,8 @@ def add() -> str:
                         address_visited=address_visited,
                         referral=referral,
                     )
+                    _async_geocode_stop(new_id, street_address, city, state, zipcode)
+                    event_bus.publish("stop_added", {"id": new_id, "date": date_str})
                     message = "Address added successfully."
                 except Exception as exc:  # pragma: no cover
                     error = f"Failed to add address: {exc}"
@@ -1462,6 +1786,7 @@ def edit() -> str:
                 scheduled_time=scheduled_time,
                 updates=updates,
             )
+            event_bus.publish("stop_updated", {"name": updates.get("name") or name})
             current = data_source.get_stop(
                 name=updates["name"] or name,
                 address=updates["address"] or address,
@@ -1526,6 +1851,7 @@ def edit_by_id(item_id: int) -> str:
             )
         try:
             data_source.update_stop_by_id(item_id, updates)
+            event_bus.publish("stop_updated", {"id": item_id, "date": updates.get("date")})
             current = data_source.get_stop_by_id(item_id)
             if current:
                 street_addr, city_prefill, state_prefill = _split_address_components(current.address)

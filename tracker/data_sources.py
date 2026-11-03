@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import os
+import re
 from dataclasses import dataclass
 from datetime import datetime, time
 from pathlib import Path
@@ -47,6 +48,38 @@ def resolve_pg_dsn(explicit_dsn: Optional[str] = None) -> Optional[str]:
     return dsn
 
 
+_STREET_SUFFIX_MAP = {
+    "street": "st",
+    "avenue": "ave",
+    "road": "rd",
+    "drive": "dr",
+    "lane": "ln",
+    "court": "ct",
+    "circle": "cir",
+    "boulevard": "blvd",
+    "place": "pl",
+    "terrace": "ter",
+    "parkway": "pkwy",
+    "trail": "trl",
+    "highway": "hwy",
+    "apartment": "apt",
+    "unit": "apt",
+    "north": "n",
+    "south": "s",
+    "east": "e",
+    "west": "w",
+}
+
+
+def normalize_address_key(address: Optional[str]) -> str:
+    """Normalize a US street address into a canonical deduplication key."""
+    if not address:
+        return ""
+    cleaned = re.sub(r"[^a-z0-9\s]", " ", address.lower())
+    tokens = [_STREET_SUFFIX_MAP.get(tok, tok) for tok in cleaned.split() if tok]
+    return " ".join(tokens)
+
+
 @dataclass(frozen=True)
 class CarolsStop:
     """Represents a single carols visit record."""
@@ -65,6 +98,8 @@ class CarolsStop:
     id: Optional[int] = None
     address_visited: Optional[bool] = None
     referral: Optional[str] = "church"
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
 
 
 def _normalize_text(value: Optional[str]) -> Optional[str]:
@@ -72,6 +107,15 @@ def _normalize_text(value: Optional[str]) -> Optional[str]:
         return None
     v = str(value).strip()
     return v if v else None
+
+
+def _normalize_float(value: object) -> Optional[float]:
+    if value is None or value == "":
+        return None
+    try:
+        return float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return None
 
 
 def _split_members(value: Optional[str]) -> List[str]:
@@ -112,6 +156,8 @@ def _row_to_stop(row: dict) -> CarolsStop:
         id=id_parsed,
         address_visited=visited_parsed,
         referral=_normalize_text(row.get("Referral")) or "church",
+        latitude=_normalize_float(row.get("Latitude")),
+        longitude=_normalize_float(row.get("Longitude")),
     )
 
 
@@ -206,6 +252,8 @@ class PostgresDataSource:
                         visit_order INTEGER,
                         address_visited BOOLEAN DEFAULT FALSE,
                         referral TEXT DEFAULT 'church',
+                        latitude DOUBLE PRECISION,
+                        longitude DOUBLE PRECISION,
                         created_at TIMESTAMPTZ DEFAULT NOW()
                     );
                     """
@@ -224,11 +272,23 @@ class PostgresDataSource:
                     "ALTER TABLE carols.carols_schedule ADD COLUMN IF NOT EXISTS visit_order INTEGER;",
                     "ALTER TABLE carols.carols_schedule ADD COLUMN IF NOT EXISTS address_visited BOOLEAN DEFAULT FALSE;",
                     "ALTER TABLE carols.carols_schedule ADD COLUMN IF NOT EXISTS referral TEXT DEFAULT 'church';",
+                    "ALTER TABLE carols.carols_schedule ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION;",
+                    "ALTER TABLE carols.carols_schedule ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION;",
                     "ALTER TABLE carols.carols_schedule ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();",
                 ]
                 for stmt in alter_statements:
                     cursor.execute(stmt)
         self._schema_ready = True
+
+    def find_stop_by_normalized_address(self, address: str) -> Optional[CarolsStop]:
+        """Return an existing CarolsStop matching the canonical normalized street address, if any."""
+        target = normalize_address_key(address)
+        if not target:
+            return None
+        for stop in self.get_stops():
+            if normalize_address_key(stop.address) == target:
+                return stop
+        return None
 
     def get_stops(
         self,
@@ -257,7 +317,9 @@ class PostgresDataSource:
                             visit_order        AS "Visit Order",
                             id                 AS "Id",
                             address_visited    AS "Address Visited",
-                            referral           AS "Referral"
+                            referral           AS "Referral",
+                            latitude           AS "Latitude",
+                            longitude          AS "Longitude"
                         FROM carols.carols_schedule
                         ORDER BY date NULLS LAST, visit_order NULLS LAST, scheduled_time NULLS LAST, id ASC
                         """
@@ -311,6 +373,8 @@ class PostgresDataSource:
         visit_order: Optional[int] = None,
         address_visited: Optional[bool] = False,
         referral: Optional[str] = "church",
+        latitude: Optional[float] = None,
+        longitude: Optional[float] = None,
     ) -> Optional[int]:
         if psycopg2 is None:
             raise RuntimeError("psycopg2 is required to insert into Postgres")
@@ -385,6 +449,12 @@ class PostgresDataSource:
                 if include_date:
                     cols.append("date")
                     params.append(date)
+                if latitude is not None and has_column("latitude"):
+                    cols.append("latitude")
+                    params.append(float(latitude))
+                if longitude is not None and has_column("longitude"):
+                    cols.append("longitude")
+                    params.append(float(longitude))
                 cols.extend(["scheduled_time", "visit_order", "address_visited", "referral"])
                 params.extend(
                     [
@@ -444,7 +514,9 @@ class PostgresDataSource:
                         visit_order        AS "Visit Order",
                         id                 AS "Id",
                         address_visited    AS "Address Visited",
-                        referral           AS "Referral"
+                        referral           AS "Referral",
+                        latitude           AS "Latitude",
+                        longitude          AS "Longitude"
                     FROM carols.carols_schedule
                     WHERE name = %s AND address = %s
                         AND (
@@ -480,7 +552,9 @@ class PostgresDataSource:
                             visit_order        AS "Visit Order",
                             id                 AS "Id",
                             address_visited    AS "Address Visited",
-                            referral           AS "Referral"
+                            referral           AS "Referral",
+                            latitude           AS "Latitude",
+                            longitude          AS "Longitude"
                         FROM carols.carols_schedule
                         WHERE id = %s
                         """,
@@ -536,6 +610,8 @@ class PostgresDataSource:
             "visit_order",
             "address_visited",
             "referral",
+            "latitude",
+            "longitude",
         }
         to_set = {k: v for k, v in updates.items() if k in allowed}
         if not to_set:
@@ -597,6 +673,8 @@ class PostgresDataSource:
             "visit_order",
             "address_visited",
             "referral",
+            "latitude",
+            "longitude",
         }
         to_set = {k: v for k, v in updates.items() if k in allowed}
         if not to_set:

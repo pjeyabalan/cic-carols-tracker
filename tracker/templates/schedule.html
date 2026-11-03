@@ -161,8 +161,16 @@
       .reorder-bar {
         display: flex;
         justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
         gap: 0.5rem;
         margin-bottom: 0.5rem;
+      }
+      .reorder-group {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 0.45rem;
       }
       .reorder-btn {
         border: none;
@@ -174,7 +182,30 @@
         cursor: pointer;
         font-size: 0.85rem;
       }
+      .reorder-btn:disabled { opacity: 0.6; cursor: wait; }
       .quick-add-btn { background: #059669; }
+      .smart-sort-btn { background: linear-gradient(135deg, #2563eb, #0ea5e9); }
+      .split-teams-btn { background: linear-gradient(135deg, #7c3aed, #db2777); }
+      .pin-last-select {
+        border: 1px solid rgba(15, 23, 42, 0.22);
+        border-radius: 999px;
+        padding: 0.4rem 0.7rem;
+        font-size: 0.82rem;
+        font-weight: 600;
+        color: #0b0b1a;
+        background: #fff;
+      }
+      .route-opt-feedback {
+        display: none;
+        margin: 0.25rem 0 0.75rem;
+        padding: 0.5rem 0.8rem;
+        border-radius: 0.7rem;
+        background: #ecfdf5;
+        border: 1px solid #86efac;
+        color: #166534;
+        font-size: 0.86rem;
+        font-weight: 700;
+      }
       .quick-add-form {
         display: none;
         margin: 0.5rem 0 0.75rem;
@@ -422,11 +453,26 @@
           </div>
           {% if using_postgres and not block.is_unscheduled %}
           <div class="reorder-bar">
-            <button type="button" class="reorder-btn quick-add-btn" data-qa="open" data-date="{{ block.date }}">Quick Add</button>
+            <div class="reorder-group">
+              <button type="button" class="reorder-btn quick-add-btn" data-qa="open" data-date="{{ block.date }}">Quick Add</button>
+              {% if block.stops and block.stops|length >= 2 %}
+              <button type="button" class="reorder-btn smart-sort-btn" data-opt-date="{{ block.date }}" title="Optimize driving route using Nearest-Neighbor + 2-Opt TSP">Smart Sort Route</button>
+              <select class="pin-last-select" data-pin-date="{{ block.date }}" aria-label="Optional pinned final home">
+                <option value="">Final Home: Auto</option>
+                {% for entry in block.stops %}
+                  {% if entry.stop.id %}
+                  <option value="{{ entry.stop.id }}">Pin Last: {{ entry.stop.name }}</option>
+                  {% endif %}
+                {% endfor %}
+              </select>
+              <button type="button" class="reorder-btn split-teams-btn" data-split-date="{{ block.date }}" title="Split houses geographically into Team 1 & Team 2">Split 2 Teams</button>
+              {% endif %}
+            </div>
             {% if block.stops %}
             <button type="button" class="reorder-btn" data-date="{{ block.date }}">Save order</button>
             {% endif %}
           </div>
+          <p class="route-opt-feedback" data-feedback="{{ block.date }}"></p>
           <div class="quick-add-form" data-date="{{ block.date }}">
             <div class="row">
               <input type="text" placeholder="Full Name" data-qa="name" />
@@ -705,7 +751,7 @@
 
         // Save order button
         document.querySelectorAll('.reorder-btn[data-date]').forEach(btn => {
-          if (btn.getAttribute('data-qa') === 'open') return; // handled separately
+          if (btn.hasAttribute('data-qa')) return; // handled separately
           btn.addEventListener('click', async () => {
             const date = btn.getAttribute('data-date');
             const grid = document.querySelector(`.card-grid[data-date="${date}"]`);
@@ -729,6 +775,106 @@
               }
             } catch (e) {
               alert('Network error saving order');
+            }
+          });
+        });
+
+        // Smart Sort Route (2-Opt TSP)
+        document.querySelectorAll('.smart-sort-btn[data-opt-date]').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const date = btn.getAttribute('data-opt-date');
+            const pinSelect = document.querySelector(`.pin-last-select[data-pin-date="${date}"]`);
+            const lockLastId = pinSelect && pinSelect.value ? parseInt(pinSelect.value, 10) : null;
+            const fb = document.querySelector(`.route-opt-feedback[data-feedback="${date}"]`);
+            const origLabel = btn.textContent;
+            btn.disabled = true;
+            btn.textContent = 'Optimizing…';
+            try {
+              const resp = await fetch('/api/schedule/optimize', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ date, lock_last_id: lockLastId })
+              });
+              const data = await resp.json();
+              if (data && data.ok) {
+                const grid = document.querySelector(`.card-grid[data-date="${date}"]`);
+                if (grid && Array.isArray(data.order_ids)) {
+                  const cardMap = new Map();
+                  grid.querySelectorAll('.house-card[data-id]').forEach(card => {
+                    cardMap.set(parseInt(card.getAttribute('data-id'), 10), card);
+                  });
+                  data.order_ids.forEach(id => {
+                    const card = cardMap.get(id);
+                    if (card) grid.appendChild(card);
+                  });
+                }
+                if (fb) {
+                  const savedTxt = data.saved_miles > 0
+                    ? ` (saved ${data.saved_miles} mi)`
+                    : ' (already shortest path)';
+                  fb.textContent = `✓ Smart Sort complete: ${data.baseline_miles} mi → ${data.optimized_miles} mi${savedTxt}.`;
+                  fb.style.display = 'block';
+                }
+              } else {
+                alert(data && data.error ? data.error : 'Failed to optimize route');
+              }
+            } catch (e) {
+              alert('Network error optimizing route');
+            } finally {
+              btn.disabled = false;
+              btn.textContent = origLabel;
+            }
+          });
+        });
+
+        // Split 2 Teams (Balanced Spatial K-Means + 2-Opt TSP)
+        document.querySelectorAll('.split-teams-btn[data-split-date]').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const date = btn.getAttribute('data-split-date');
+            if (!confirm('Split this night geographically into Team 1 and Team 2 and optimize each team route?')) return;
+            const fb = document.querySelector(`.route-opt-feedback[data-feedback="${date}"]`);
+            const origLabel = btn.textContent;
+            btn.disabled = true;
+            btn.textContent = 'Splitting…';
+            try {
+              const resp = await fetch('/api/schedule/split_teams', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ date })
+              });
+              const data = await resp.json();
+              if (data && data.ok) {
+                const grid = document.querySelector(`.card-grid[data-date="${date}"]`);
+                if (grid) {
+                  const cardMap = new Map();
+                  grid.querySelectorAll('.house-card[data-id]').forEach(card => {
+                    cardMap.set(parseInt(card.getAttribute('data-id'), 10), card);
+                  });
+                  const applyTeamTag = (id, teamLabel) => {
+                    const card = cardMap.get(id);
+                    if (!card) return;
+                    grid.appendChild(card);
+                    const ps = Array.from(card.querySelectorAll('p'));
+                    const refP = ps.find(p => (p.textContent || '').trim().startsWith('Referral:'));
+                    if (refP) {
+                      refP.innerHTML = `Referral: <strong>${teamLabel}</strong>`;
+                    }
+                  };
+                  (data.team1_ids || []).forEach(id => applyTeamTag(id, 'TEAM1'));
+                  (data.team2_ids || []).forEach(id => applyTeamTag(id, 'TEAM2'));
+                }
+                if (fb) {
+                  fb.textContent = `✓ Split into 2 balanced spatial teams: TEAM1 (${data.team1_count} houses) & TEAM2 (${data.team2_count} houses).`;
+                  fb.style.display = 'block';
+                }
+              } else {
+                alert(data && data.error ? data.error : 'Failed to split teams');
+              }
+            } catch (e) {
+              alert('Network error splitting teams');
+            } finally {
+              btn.disabled = false;
+              btn.textContent = origLabel;
             }
           });
         });

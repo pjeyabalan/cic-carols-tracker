@@ -7,7 +7,7 @@ services:
     runtime: python
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn -b 0.0.0.0:$PORT tracker.web:app
+    startCommand: gunicorn --threads 8 -w 1 --timeout 120 -b 0.0.0.0:$PORT tracker.web:app
     healthCheckPath: /healthz
     envVars:
       - key: PYTHON_VERSION

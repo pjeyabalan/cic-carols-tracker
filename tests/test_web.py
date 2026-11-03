@@ -1,7 +1,13 @@
 from unittest.mock import MagicMock
 
 import tracker.web as web_mod
-from tracker.data_sources import CarolsStop, PostgresDataSource, resolve_pg_dsn
+from tracker.data_sources import (
+    CarolsStop,
+    PostgresDataSource,
+    normalize_address_key,
+    resolve_pg_dsn,
+)
+from tracker.events import TrackerEventBus
 from tracker.web import app
 
 
@@ -199,3 +205,122 @@ def test_resolve_pg_dsn_render_url(monkeypatch) -> None:
     monkeypatch.setenv("DATABASE_URL", "postgres://carols_user:secret@dpg-xyz.oregon-postgres.render.com/carols")
     dsn = resolve_pg_dsn()
     assert dsn == "postgresql://carols_user:secret@dpg-xyz.oregon-postgres.render.com/carols?sslmode=require"
+
+
+def test_normalize_address_key_canonicalizes_suffixes() -> None:
+    a = normalize_address_key("742 Evergreen Terrace, Schaumburg, IL")
+    b = normalize_address_key("  742 evergreen ter.   schaumburg il ")
+    assert a == b
+
+
+def test_registration_idempotent_duplicate_updates_instead_of_inserting(monkeypatch) -> None:
+    fake_pg = MagicMock(spec=PostgresDataSource)
+    existing_stop = CarolsStop(
+        id=55,
+        name="Daniel Rajan",
+        family_members=["Daniel"],
+        address="742 Evergreen Ter, Schaumburg, IL",
+        zipcode="60193",
+        date="2026-12-08",
+        day="Tuesday",
+        referral="Carols-CIC",
+    )
+    fake_pg.find_stop_by_normalized_address.return_value = existing_stop
+    monkeypatch.setattr(web_mod, "data_source", fake_pg)
+
+    client = app.test_client()
+    resp = client.post(
+        "/registration",
+        data={
+            "first_name": "Daniel",
+            "last_name": "Rajan",
+            "address": "742 Evergreen Terrace",
+            "city": "Schaumburg",
+            "state": "IL",
+            "zipcode": "60193",
+            "phone": "(847) 555-7777",
+            "prayer_request": "Updated prayer request",
+        },
+    )
+    assert resp.status_code == 200
+    assert b"without creating a duplicate" in resp.data
+    fake_pg.add_stop.assert_not_called()
+    fake_pg.update_stop_by_id.assert_called_once()
+    call_id, updates = fake_pg.update_stop_by_id.call_args.args
+    assert call_id == 55
+    assert updates["contact_number"] == "(847) 555-7777"
+    assert updates["prayer_request"] == "Updated prayer request"
+
+
+def test_api_optimize_schedule_reorders_and_saves_miles(monkeypatch) -> None:
+    fake_pg = MagicMock(spec=PostgresDataSource)
+    fake_pg.get_stops.return_value = [
+        CarolsStop(id=1, name="North-1", family_members=[], address="1 N St, BG, IL", visit_order=10, latitude=42.20, longitude=-87.96),
+        CarolsStop(id=2, name="South-1", family_members=[], address="2 S St, MP, IL", visit_order=20, latitude=42.06, longitude=-87.96),
+        CarolsStop(id=3, name="North-2", family_members=[], address="3 N St, BG, IL", visit_order=30, latitude=42.19, longitude=-87.95),
+        CarolsStop(id=4, name="South-2", family_members=[], address="4 S St, MP, IL", visit_order=40, latitude=42.07, longitude=-87.95),
+    ]
+    monkeypatch.setattr(web_mod, "data_source", fake_pg)
+
+    client = app.test_client()
+    resp = client.post("/api/schedule/optimize", json={"date": "2026-12-01", "lock_last_id": 4})
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["ok"] is True
+    assert data["saved_miles"] > 5.0
+    assert data["order_ids"][-1] == 4
+    fake_pg.reorder_stops.assert_called_once_with(ids=data["order_ids"], date="2026-12-01")
+
+
+def test_api_split_teams_assigns_team1_and_team2(monkeypatch) -> None:
+    fake_pg = MagicMock(spec=PostgresDataSource)
+    fake_pg.get_stops.return_value = [
+        CarolsStop(id=1, name="HW-1", family_members=[], address="1 HW, IL", latitude=42.22, longitude=-88.07),
+        CarolsStop(id=2, name="VH-1", family_members=[], address="2 VH, IL", latitude=42.22, longitude=-87.95),
+        CarolsStop(id=3, name="HW-2", family_members=[], address="3 HW, IL", latitude=42.23, longitude=-88.06),
+        CarolsStop(id=4, name="VH-2", family_members=[], address="4 VH, IL", latitude=42.23, longitude=-87.94),
+    ]
+    monkeypatch.setattr(web_mod, "data_source", fake_pg)
+
+    client = app.test_client()
+    resp = client.post("/api/schedule/split_teams", json={"date": "2026-12-11"})
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["ok"] is True
+    assert data["team1_count"] == 2
+    assert data["team2_count"] == 2
+    assert fake_pg.update_stop_by_id.call_count == 4
+
+
+def test_sse_event_bus_and_tracker_status_etas(monkeypatch) -> None:
+    bus = TrackerEventBus()
+    gen = bus.subscribe(heartbeat_seconds=0.05)
+    # Trigger publish from main thread after priming generator in background or verify heartbeat + message
+    import threading
+
+    def _pub() -> None:
+        bus.publish("visited_toggled", {"id": 7, "visited": True})
+
+    t = threading.Timer(0.01, _pub)
+    t.start()
+    chunk = next(gen)
+    gen.close()
+    assert chunk.startswith("data: ")
+    assert "visited_toggled" in chunk
+
+    client = app.test_client()
+    status_resp = client.get("/api/tracker_status?day=Friday")
+    assert status_resp.status_code == 200
+    payload = status_resp.get_json()
+    assert "etas" in payload
+    assert "visited_today" in payload
+    assert "total_today" in payload
+
+    stream_resp = client.get("/api/stream/tracker?day=Friday", buffered=False)
+    assert stream_resp.status_code == 200
+    assert stream_resp.mimetype == "text/event-stream"
+    first_frame = next(stream_resp.response).decode("utf-8")
+    stream_resp.close()
+    assert '"event": "snapshot"' in first_frame
+
+

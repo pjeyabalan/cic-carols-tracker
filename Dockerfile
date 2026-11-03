@@ -28,4 +28,4 @@ ENV PORT=8080
 
 # Gunicorn entrypoint for Flask app `tracker.web:app`
 # Use shell form so $PORT is expanded by the shell
-CMD sh -c 'gunicorn -b 0.0.0.0:$PORT tracker.web:app'
+CMD sh -c 'gunicorn --threads 8 -w 1 --timeout 120 -b 0.0.0.0:$PORT tracker.web:app'
