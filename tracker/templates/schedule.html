@@ -513,7 +513,9 @@
                   {% endif %}
                 {% endfor %}
               </select>
+              {% if block.stops|length > 20 %}
               <button type="button" class="reorder-btn split-teams-btn" data-split-date="{{ block.date }}" title="Split houses geographically into Team 1 & Team 2">Split 2 Teams</button>
+              {% endif %}
               {% endif %}
             </div>
             {% if block.stops %}
