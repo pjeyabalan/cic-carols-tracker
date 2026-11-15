@@ -127,16 +127,18 @@ def optimize_route_2opt(
     stops: List[CarolsStop],
     *,
     start_coord: Optional[Coordinate] = None,
+    lock_first_id: Optional[int] = None,
     lock_last_id: Optional[int] = None,
 ) -> Tuple[List[CarolsStop], float, float]:
     """Optimize stop visit sequence using Nearest-Neighbor initialization + 2-Opt local search.
 
+    If `lock_first_id` matches a stop's id, that stop is pinned as the first house (Start House).
     If `lock_last_id` matches a stop's id, that stop is pinned as the final destination
-    (e.g., the dinner host / last house of the night).
+    (End House / dinner host).
     Returns `(optimized_stops, baseline_miles, optimized_miles)`.
     """
     n = len(stops)
-    if n <= 2:
+    if n <= 1:
         coords = [resolve_stop_coordinate(s) for s in stops]
         dist = route_total_miles(coords)
         return list(stops), round(dist, 2), round(dist, 2)
@@ -144,15 +146,24 @@ def optimize_route_2opt(
     coords_by_idx = [resolve_stop_coordinate(s) for s in stops]
     baseline_miles = route_total_miles(coords_by_idx)
 
-    # Separate optional pinned final stop
-    pinned_idx: Optional[int] = None
-    if lock_last_id is not None:
+    # Separate optional pinned start stop and pinned final stop
+    pinned_first_idx: Optional[int] = None
+    if lock_first_id is not None:
         for i, s in enumerate(stops):
-            if s.id == lock_last_id:
-                pinned_idx = i
+            if s.id == lock_first_id:
+                pinned_first_idx = i
                 break
 
-    free_indices = [i for i in range(n) if i != pinned_idx]
+    pinned_last_idx: Optional[int] = None
+    if lock_last_id is not None:
+        for i, s in enumerate(stops):
+            if s.id == lock_last_id and i != pinned_first_idx:
+                pinned_last_idx = i
+                break
+
+    free_indices = [
+        i for i in range(n) if i != pinned_first_idx and i != pinned_last_idx
+    ]
 
     # Precompute symmetric pairwise distance matrix in miles
     dist_matrix = [
@@ -161,32 +172,41 @@ def optimize_route_2opt(
     ]
 
     # Pass 1: Nearest-Neighbor Greedy Tour Construction
-    if start_coord is not None:
-        first_idx = min(
-            free_indices,
-            key=lambda idx: haversine_miles(start_coord, coords_by_idx[idx]),
-        )
+    order: List[int] = []
+    if pinned_first_idx is not None:
+        order.append(pinned_first_idx)
+        remaining = set(free_indices)
+    elif free_indices:
+        if start_coord is not None:
+            first_idx = min(
+                free_indices,
+                key=lambda idx: haversine_miles(start_coord, coords_by_idx[idx]),
+            )
+        else:
+            # Start from northernmost/westernmost stop for a natural sweep across the neighborhood
+            first_idx = max(
+                free_indices,
+                key=lambda idx: (coords_by_idx[idx].latitude, -coords_by_idx[idx].longitude),
+            )
+        order.append(first_idx)
+        remaining = set(free_indices) - {first_idx}
     else:
-        # Start from northernmost/westernmost stop for a natural sweep across the neighborhood
-        first_idx = max(
-            free_indices,
-            key=lambda idx: (coords_by_idx[idx].latitude, -coords_by_idx[idx].longitude),
-        )
+        remaining = set()
 
-    order: List[int] = [first_idx]
-    remaining = set(free_indices) - {first_idx}
     while remaining:
         last = order[-1]
         nxt = min(remaining, key=lambda idx: dist_matrix[last][idx])
         order.append(nxt)
         remaining.remove(nxt)
 
-    if pinned_idx is not None:
-        order.append(pinned_idx)
+    if pinned_last_idx is not None:
+        order.append(pinned_last_idx)
 
     # Pass 2: 2-Opt Segment-Reversal Local Search (uncrosses any X-shaped path intersections)
-    # Valid reversal indices: [start_i .. end_k]; if final stop is pinned, never move order[-1]
-    max_reversible = len(order) - 2 if pinned_idx is not None else len(order) - 1
+    # Valid reversal indices: [min_reversible .. max_reversible]
+    # Keep order[0] fixed if Start House is pinned, and order[-1] fixed if End House is pinned.
+    min_reversible = 1 if pinned_first_idx is not None else 0
+    max_reversible = len(order) - 2 if pinned_last_idx is not None else len(order) - 1
 
     def path_cost(seq: List[int]) -> float:
         total = 0.0
@@ -199,10 +219,10 @@ def optimize_route_2opt(
     improved = True
     best_cost = path_cost(order)
     iterations = 0
-    while improved and iterations < 200:
+    while improved and iterations < 200 and min_reversible < max_reversible:
         improved = False
         iterations += 1
-        for i in range(0, max_reversible):
+        for i in range(min_reversible, max_reversible):
             for k in range(i + 1, max_reversible + 1):
                 candidate = order[:i] + list(reversed(order[i : k + 1])) + order[k + 1 :]
                 cand_cost = path_cost(candidate)

@@ -263,11 +263,15 @@ def test_api_optimize_schedule_reorders_and_saves_miles(monkeypatch) -> None:
     monkeypatch.setattr(web_mod, "data_source", fake_pg)
 
     client = app.test_client()
-    resp = client.post("/api/schedule/optimize", json={"date": "2026-12-01", "lock_last_id": 4})
+    resp = client.post(
+        "/api/schedule/optimize",
+        json={"date": "2026-12-01", "lock_first_id": 3, "lock_last_id": 4},
+    )
     assert resp.status_code == 200
     data = resp.get_json()
     assert data["ok"] is True
     assert data["saved_miles"] > 5.0
+    assert data["order_ids"][0] == 3
     assert data["order_ids"][-1] == 4
     fake_pg.reorder_stops.assert_called_once_with(ids=data["order_ids"], date="2026-12-01")
 

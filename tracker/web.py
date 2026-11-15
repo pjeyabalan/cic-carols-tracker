@@ -776,7 +776,6 @@ _CITY_TO_2026_TARGET: dict[str, str] = {
     "chicago": "2026-12-02",
     # Arlington Heights (Fri Dec 4)
     "arlington heights": "2026-12-04",
-    "rolling meadows": "2026-12-04",
     "elk grove village": "2026-12-04",
     "elk grove": "2026-12-04",
     "itasca": "2026-12-04",
@@ -823,6 +822,7 @@ _CITY_TO_2026_TARGET: dict[str, str] = {
     "bolingbrook": "2026-12-08",
     # Palatine (Wed Dec 9)
     "palatine": "2026-12-09",
+    "rolling meadows": "2026-12-09",
     "inverness": "2026-12-09",
     "barrington": "2026-12-09",
     "south barrington": "2026-12-09",
@@ -882,9 +882,10 @@ _ZIP_TO_2026_TARGET: dict[str, str] = {
     "60026": "2026-12-02",
     "60076": "2026-12-02",
     "60062": "2026-12-02",
+    "60656": "2026-12-02",
     "60004": "2026-12-04",
     "60005": "2026-12-04",
-    "60008": "2026-12-04",
+    "60008": "2026-12-09",
     "60007": "2026-12-04",
     "60143": "2026-12-04",
     "60191": "2026-12-04",
@@ -1397,14 +1398,27 @@ def api_optimize_schedule():
         except ValueError:
             return jsonify({"ok": False, "error": "Invalid date format (use YYYY-MM-DD)"}), 400
 
+        raw_first = payload.get("lock_first_id")
+        lock_first_id = (
+            int(str(raw_first).strip())
+            if raw_first is not None and str(raw_first).strip().isdigit()
+            else None
+        )
         raw_lock = payload.get("lock_last_id")
-        lock_last_id = int(raw_lock) if raw_lock is not None and str(raw_lock).isdigit() else None
+        lock_last_id = (
+            int(str(raw_lock).strip())
+            if raw_lock is not None and str(raw_lock).strip().isdigit()
+            else None
+        )
+        if lock_first_id is not None and lock_last_id is not None and lock_first_id == lock_last_id:
+            return jsonify({"ok": False, "error": "Start house and End house must be different homes."}), 400
 
         stops = data_source.get_stops(date=date_val)
         ordered_current = sorted(stops, key=_sort_key)
         geocoded = _ensure_stops_geocoded(ordered_current)
         optimized, baseline_miles, optimized_miles = optimize_route_2opt(
             geocoded,
+            lock_first_id=lock_first_id,
             lock_last_id=lock_last_id,
         )
         order_ids = [s.id for s in optimized if s.id is not None]
@@ -1413,7 +1427,13 @@ def api_optimize_schedule():
         saved_miles = round(max(0.0, baseline_miles - optimized_miles), 2)
         event_bus.publish(
             "route_optimized",
-            {"date": date_val, "order_ids": order_ids, "saved_miles": saved_miles},
+            {
+                "date": date_val,
+                "order_ids": order_ids,
+                "saved_miles": saved_miles,
+                "lock_first_id": lock_first_id,
+                "lock_last_id": lock_last_id,
+            },
         )
         return jsonify(
             {
@@ -1424,6 +1444,8 @@ def api_optimize_schedule():
                 "baseline_miles": baseline_miles,
                 "optimized_miles": optimized_miles,
                 "saved_miles": saved_miles,
+                "lock_first_id": lock_first_id,
+                "lock_last_id": lock_last_id,
             }
         )
     except Exception as exc:

@@ -186,6 +186,7 @@
       .quick-add-btn { background: #059669; }
       .smart-sort-btn { background: linear-gradient(135deg, #2563eb, #0ea5e9); }
       .split-teams-btn { background: linear-gradient(135deg, #7c3aed, #db2777); }
+      .pin-first-select,
       .pin-last-select {
         border: 1px solid rgba(15, 23, 42, 0.22);
         border-radius: 999px;
@@ -194,6 +195,45 @@
         font-weight: 600;
         color: #0b0b1a;
         background: #fff;
+      }
+      .pin-role-bar {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        flex-wrap: wrap;
+        margin-top: 0.2rem;
+      }
+      .pin-role-btn {
+        border: 1px solid rgba(15, 23, 42, 0.2);
+        border-radius: 999px;
+        padding: 0.22rem 0.6rem;
+        font-size: 0.74rem;
+        font-weight: 700;
+        cursor: pointer;
+        background: #f8fafc;
+        color: #334155;
+        transition: all 0.15s ease;
+      }
+      .pin-role-btn:hover {
+        background: #e2e8f0;
+      }
+      .pin-role-btn.active-start {
+        background: #16a34a;
+        border-color: #15803d;
+        color: #fff;
+      }
+      .pin-role-btn.active-end {
+        background: #d97706;
+        border-color: #b45309;
+        color: #fff;
+      }
+      .house-card.is-start-house {
+        border: 2px solid #16a34a;
+        box-shadow: 0 16px 40px rgba(22, 163, 74, 0.22);
+      }
+      .house-card.is-end-house {
+        border: 2px solid #d97706;
+        box-shadow: 0 16px 40px rgba(217, 119, 6, 0.22);
       }
       .route-opt-feedback {
         display: none;
@@ -457,11 +497,19 @@
               <button type="button" class="reorder-btn quick-add-btn" data-qa="open" data-date="{{ block.date }}">Quick Add</button>
               {% if block.stops and block.stops|length >= 2 %}
               <button type="button" class="reorder-btn smart-sort-btn" data-opt-date="{{ block.date }}" title="Optimize driving route using Nearest-Neighbor + 2-Opt TSP">Smart Sort Route</button>
-              <select class="pin-last-select" data-pin-date="{{ block.date }}" aria-label="Optional pinned final home">
-                <option value="">Final Home: Auto</option>
+              <select class="pin-first-select" data-pin-first-date="{{ block.date }}" aria-label="Optional pinned start home">
+                <option value="">Start House: Auto</option>
                 {% for entry in block.stops %}
                   {% if entry.stop.id %}
-                  <option value="{{ entry.stop.id }}">Pin Last: {{ entry.stop.name }}</option>
+                  <option value="{{ entry.stop.id }}">🚩 Start: {{ entry.stop.name }}</option>
+                  {% endif %}
+                {% endfor %}
+              </select>
+              <select class="pin-last-select" data-pin-date="{{ block.date }}" aria-label="Optional pinned final home">
+                <option value="">End House: Auto</option>
+                {% for entry in block.stops %}
+                  {% if entry.stop.id %}
+                  <option value="{{ entry.stop.id }}">🏁 End: {{ entry.stop.name }}</option>
                   {% endif %}
                 {% endfor %}
               </select>
@@ -500,6 +548,12 @@
               {% endif %}
               <p class="house-name">{{ entry.stop.name }}</p>
               <span class="status-chip {{ entry.css_class }}">{{ entry.badge }}</span>
+              {% if using_postgres and entry.stop.id is not none and not block.is_unscheduled %}
+              <div class="pin-role-bar" data-date="{{ block.date }}" data-id="{{ entry.stop.id }}">
+                <button type="button" class="pin-role-btn" data-role="set-start" data-date="{{ block.date }}" data-id="{{ entry.stop.id }}" title="Fix this house as the Start House (#1) and smart-route the rest">🚩 Start House</button>
+                <button type="button" class="pin-role-btn" data-role="set-end" data-date="{{ block.date }}" data-id="{{ entry.stop.id }}" title="Fix this house as the End House (last) and smart-route the rest">🏁 End House</button>
+              </div>
+              {% endif %}
               {% if using_postgres and entry.stop.id is not none %}
               <div class="toggle" style="margin-top:0.25rem;">
                 <span>Visited:</span>
@@ -779,51 +833,165 @@
           });
         });
 
-        // Smart Sort Route (2-Opt TSP)
-        document.querySelectorAll('.smart-sort-btn[data-opt-date]').forEach(btn => {
-          btn.addEventListener('click', async () => {
-            const date = btn.getAttribute('data-opt-date');
-            const pinSelect = document.querySelector(`.pin-last-select[data-pin-date="${date}"]`);
-            const lockLastId = pinSelect && pinSelect.value ? parseInt(pinSelect.value, 10) : null;
-            const fb = document.querySelector(`.route-opt-feedback[data-feedback="${date}"]`);
-            const origLabel = btn.textContent;
+        // Smart Sort Route (2-Opt TSP) with fixed Start House & End House support
+        const syncPinVisuals = (date) => {
+          const firstSelect = document.querySelector(`.pin-first-select[data-pin-first-date="${date}"]`);
+          const lastSelect = document.querySelector(`.pin-last-select[data-pin-date="${date}"]`);
+          const firstVal = firstSelect ? (firstSelect.value || '') : '';
+          const lastVal = lastSelect ? (lastSelect.value || '') : '';
+          try {
+            if (firstVal) localStorage.setItem(`carols_pin_first_${date}`, firstVal);
+            else localStorage.removeItem(`carols_pin_first_${date}`);
+            if (lastVal) localStorage.setItem(`carols_pin_last_${date}`, lastVal);
+            else localStorage.removeItem(`carols_pin_last_${date}`);
+          } catch (e) {}
+
+          const grid = document.querySelector(`.card-grid[data-date="${date}"]`);
+          if (!grid) return;
+          grid.querySelectorAll('.house-card[data-id]').forEach(card => {
+            const cid = card.getAttribute('data-id') || '';
+            const isStart = firstVal && cid === firstVal;
+            const isEnd = lastVal && cid === lastVal;
+            card.classList.toggle('is-start-house', !!isStart);
+            card.classList.toggle('is-end-house', !!isEnd);
+            const startBtn = card.querySelector('.pin-role-btn[data-role="set-start"]');
+            const endBtn = card.querySelector('.pin-role-btn[data-role="set-end"]');
+            if (startBtn) {
+              startBtn.classList.toggle('active-start', !!isStart);
+              startBtn.textContent = isStart ? '🚩 Start House ✓' : '🚩 Start House';
+            }
+            if (endBtn) {
+              endBtn.classList.toggle('active-end', !!isEnd);
+              endBtn.textContent = isEnd ? '🏁 End House ✓' : '🏁 End House';
+            }
+          });
+        };
+
+        // Restore saved Start/End house selections per date on load
+        document.querySelectorAll('.card-grid[data-date]').forEach(grid => {
+          const date = grid.getAttribute('data-date');
+          if (!date) return;
+          const firstSelect = document.querySelector(`.pin-first-select[data-pin-first-date="${date}"]`);
+          const lastSelect = document.querySelector(`.pin-last-select[data-pin-date="${date}"]`);
+          try {
+            const savedFirst = localStorage.getItem(`carols_pin_first_${date}`);
+            const savedLast = localStorage.getItem(`carols_pin_last_${date}`);
+            if (firstSelect && savedFirst && firstSelect.querySelector(`option[value="${savedFirst}"]`)) {
+              firstSelect.value = savedFirst;
+            }
+            if (lastSelect && savedLast && lastSelect.querySelector(`option[value="${savedLast}"]`)) {
+              lastSelect.value = savedLast;
+            }
+          } catch (e) {}
+          syncPinVisuals(date);
+        });
+
+        const runSmartSort = async (date) => {
+          const btn = document.querySelector(`.smart-sort-btn[data-opt-date="${date}"]`);
+          const firstSelect = document.querySelector(`.pin-first-select[data-pin-first-date="${date}"]`);
+          const pinSelect = document.querySelector(`.pin-last-select[data-pin-date="${date}"]`);
+          const lockFirstId = firstSelect && firstSelect.value ? parseInt(firstSelect.value, 10) : null;
+          const lockLastId = pinSelect && pinSelect.value ? parseInt(pinSelect.value, 10) : null;
+          const fb = document.querySelector(`.route-opt-feedback[data-feedback="${date}"]`);
+          syncPinVisuals(date);
+          const origLabel = btn ? btn.textContent : 'Smart Sort Route';
+          if (btn) {
             btn.disabled = true;
             btn.textContent = 'Optimizing…';
-            try {
-              const resp = await fetch('/api/schedule/optimize', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ date, lock_last_id: lockLastId })
-              });
-              const data = await resp.json();
-              if (data && data.ok) {
-                const grid = document.querySelector(`.card-grid[data-date="${date}"]`);
-                if (grid && Array.isArray(data.order_ids)) {
-                  const cardMap = new Map();
-                  grid.querySelectorAll('.house-card[data-id]').forEach(card => {
-                    cardMap.set(parseInt(card.getAttribute('data-id'), 10), card);
-                  });
-                  data.order_ids.forEach(id => {
-                    const card = cardMap.get(id);
-                    if (card) grid.appendChild(card);
-                  });
-                }
-                if (fb) {
-                  const savedTxt = data.saved_miles > 0
-                    ? ` (saved ${data.saved_miles} mi)`
-                    : ' (already shortest path)';
-                  fb.textContent = `✓ Smart Sort complete: ${data.baseline_miles} mi → ${data.optimized_miles} mi${savedTxt}.`;
-                  fb.style.display = 'block';
-                }
-              } else {
-                alert(data && data.error ? data.error : 'Failed to optimize route');
+          }
+          try {
+            const resp = await fetch('/api/schedule/optimize', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ date, lock_first_id: lockFirstId, lock_last_id: lockLastId })
+            });
+            const data = await resp.json();
+            if (data && data.ok) {
+              const grid = document.querySelector(`.card-grid[data-date="${date}"]`);
+              if (grid && Array.isArray(data.order_ids)) {
+                const cardMap = new Map();
+                grid.querySelectorAll('.house-card[data-id]').forEach(card => {
+                  cardMap.set(parseInt(card.getAttribute('data-id'), 10), card);
+                });
+                data.order_ids.forEach(id => {
+                  const card = cardMap.get(id);
+                  if (card) grid.appendChild(card);
+                });
               }
-            } catch (e) {
-              alert('Network error optimizing route');
-            } finally {
+              syncPinVisuals(date);
+              if (fb) {
+                const savedTxt = data.saved_miles > 0
+                  ? ` (saved ${data.saved_miles} mi)`
+                  : ' (already shortest path)';
+                const pinnedParts = [];
+                if (lockFirstId) pinnedParts.push('Start house fixed #1');
+                if (lockLastId) pinnedParts.push('End house fixed last');
+                const pinSuffix = pinnedParts.length ? ` · ${pinnedParts.join(' & ')}` : '';
+                fb.textContent = `✓ Smart Sort complete: ${data.baseline_miles} mi → ${data.optimized_miles} mi${savedTxt}${pinSuffix}.`;
+                fb.style.display = 'block';
+              }
+            } else {
+              alert(data && data.error ? data.error : 'Failed to optimize route');
+            }
+          } catch (e) {
+            alert('Network error optimizing route');
+          } finally {
+            if (btn) {
               btn.disabled = false;
               btn.textContent = origLabel;
             }
+          }
+        };
+
+        document.querySelectorAll('.smart-sort-btn[data-opt-date]').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const date = btn.getAttribute('data-opt-date');
+            if (date) runSmartSort(date);
+          });
+        });
+
+        document.querySelectorAll('.pin-first-select[data-pin-first-date]').forEach(sel => {
+          sel.addEventListener('change', () => {
+            const date = sel.getAttribute('data-pin-first-date');
+            const lastSelect = document.querySelector(`.pin-last-select[data-pin-date="${date}"]`);
+            if (sel.value && lastSelect && lastSelect.value === sel.value) {
+              lastSelect.value = '';
+            }
+            if (date) runSmartSort(date);
+          });
+        });
+
+        document.querySelectorAll('.pin-last-select[data-pin-date]').forEach(sel => {
+          sel.addEventListener('change', () => {
+            const date = sel.getAttribute('data-pin-date');
+            const firstSelect = document.querySelector(`.pin-first-select[data-pin-first-date="${date}"]`);
+            if (sel.value && firstSelect && firstSelect.value === sel.value) {
+              firstSelect.value = '';
+            }
+            if (date) runSmartSort(date);
+          });
+        });
+
+        document.querySelectorAll('.pin-role-btn[data-role]').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const role = btn.getAttribute('data-role');
+            const date = btn.getAttribute('data-date');
+            const id = btn.getAttribute('data-id') || '';
+            if (!date || !id) return;
+            const firstSelect = document.querySelector(`.pin-first-select[data-pin-first-date="${date}"]`);
+            const lastSelect = document.querySelector(`.pin-last-select[data-pin-date="${date}"]`);
+            if (role === 'set-start' && firstSelect) {
+              firstSelect.value = (firstSelect.value === id) ? '' : id;
+              if (firstSelect.value && lastSelect && lastSelect.value === id) {
+                lastSelect.value = '';
+              }
+            } else if (role === 'set-end' && lastSelect) {
+              lastSelect.value = (lastSelect.value === id) ? '' : id;
+              if (lastSelect.value && firstSelect && firstSelect.value === id) {
+                firstSelect.value = '';
+              }
+            }
+            runSmartSort(date);
           });
         });
 

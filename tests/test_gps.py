@@ -76,6 +76,18 @@ def test_optimize_route_2opt_locks_pinned_final_home() -> None:
     assert optimized[-1].name == "Dinner Host"
 
 
+def test_optimize_route_2opt_locks_both_start_and_end_homes() -> None:
+    stops = [
+        _make_stop("Middle North", stop_id=10, lat=42.19, lon=-87.96),
+        _make_stop("Pinned End", stop_id=20, lat=42.05, lon=-87.96),
+        _make_stop("Pinned Start", stop_id=30, lat=42.22, lon=-87.96),
+        _make_stop("Middle South", stop_id=40, lat=42.10, lon=-87.96),
+        _make_stop("Middle Center", stop_id=50, lat=42.15, lon=-87.96),
+    ]
+    optimized, _, _ = optimize_route_2opt(stops, lock_first_id=30, lock_last_id=20)
+    assert [s.id for s in optimized] == [30, 10, 50, 40, 20]
+
+
 def test_cluster_two_teams_balanced_and_geographically_separated() -> None:
     # 4 homes in Hawthorn Woods (west) + 4 homes in Vernon Hills (east)
     stops = [
