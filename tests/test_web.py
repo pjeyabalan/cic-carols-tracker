@@ -73,7 +73,7 @@ def test_registration_post_persists_full_address(monkeypatch) -> None:
         prayer_request="Health and blessings for 2027",
         zipcode="60193",
         day="Tuesday",
-        date="2026-12-08",
+        date="2026-12-22",
         scheduled_time=None,
         visit_order=None,
         address_visited=False,
@@ -118,11 +118,11 @@ def test_registration_unknown_city_matches_nearest_area_by_proximity(monkeypatch
     )
     assert response.status_code == 200
     assert b"Based on proximity" in response.data
-    assert b"Gurnee" in response.data
+    assert b"Vertical Church (Waukegan)" in response.data
     fake_pg.add_stop.assert_called_once()
     kwargs = fake_pg.add_stop.call_args.kwargs
-    assert kwargs["date"] == "2026-12-15"
-    assert kwargs["day"] == "Tuesday"
+    assert kwargs["date"] == "2026-12-11"
+    assert kwargs["day"] == "Friday"
 
 
 def test_schedule_displays_2026_areas_and_house_counts(monkeypatch) -> None:
@@ -136,12 +136,12 @@ def test_schedule_displays_2026_areas_and_house_counts(monkeypatch) -> None:
                 family_members=[],
                 address="742 Evergreen Terrace, Schaumburg, IL",
                 zipcode="60193",
-                date="2026-12-08",
+                date="2026-12-22",
                 day="Tuesday",
                 referral="Carols-CIC",
             )
         ]
-        if date in (None, "2026-12-08")
+        if date in (None, "2026-12-22")
         else []
     )
     monkeypatch.setattr(web_mod, "data_source", fake_pg)
@@ -150,20 +150,21 @@ def test_schedule_displays_2026_areas_and_house_counts(monkeypatch) -> None:
     resp = client.get("/schedule")
     assert resp.status_code == 200
     for area in [
+        b"Des Plaines / Mount Prospect / Chicago",
         b"Buffalo Grove",
-        b"Mount Prospect",
         b"Arlington Heights",
+        b"Mundelein",
         b"Elgin",
-        b"Schaumburg",
-        b"Hawthorn Woods / Vernon Hills",
-        b"Palatine",
-        b"Gurnee",
+        b"Vertical Church (Waukegan)",
         b"Hoffman Estates",
+        b"Palatine",
+        b"Schaumburg",
+        b"Spill Over",
     ]:
         assert area in resp.data
     assert b"1 house" in resp.data
     assert b"2026-12-01" in resp.data
-    assert b"2026-12-16" in resp.data
+    assert b"2026-12-23" in resp.data
     assert b"2026-12-17" not in resp.data
 
 

@@ -727,53 +727,58 @@ def backup_export_json():
 
 
 CAROLS_2026_AREA_MAP: dict[str, str] = {
-    "2026-12-01": "Buffalo Grove",
-    "2026-12-02": "Mount Prospect",
+    "2026-12-01": "Des Plaines / Mount Prospect / Chicago",
+    "2026-12-02": "Buffalo Grove",
     "2026-12-04": "Arlington Heights",
-    "2026-12-05": "Elgin",
-    "2026-12-08": "Schaumburg",
-    "2026-12-09": "Palatine",
-    "2026-12-11": "Hawthorn Woods / Vernon Hills",
-    "2026-12-12": "Buffalo Grove",
-    "2026-12-15": "Gurnee",
+    "2026-12-05": "Buffalo Grove",
+    "2026-12-06": "Mundelein",
+    "2026-12-08": "Elgin",
+    "2026-12-09": "Buffalo Grove",
+    "2026-12-11": "Vertical Church (Waukegan)",
+    "2026-12-12": "Mundelein",
+    "2026-12-13": "Vertical Church (Waukegan)",
+    "2026-12-15": "Mundelein",
     "2026-12-16": "Hoffman Estates",
+    "2026-12-21": "Palatine",
+    "2026-12-22": "Schaumburg",
+    "2026-12-23": "Spill Over",
 }
 
 # Geographic centers (lat, lon) of each 2026 Carols Area for nearest-area fallback matching
 _AREA_CENTERS_2026: list[tuple[str, str, float, float]] = [
+    ("2026-12-01", "Des Plaines / Mount Prospect / Chicago", 42.0664, -87.9373),
     ("BG", "Buffalo Grove", 42.1663, -87.9631),
-    ("2026-12-02", "Mount Prospect", 42.0664, -87.9373),
     ("2026-12-04", "Arlington Heights", 42.0884, -87.9806),
-    ("2026-12-05", "Elgin", 42.0354, -88.2826),
-    ("2026-12-08", "Schaumburg", 42.0334, -88.0834),
-    ("2026-12-09", "Palatine", 42.1103, -88.0342),
-    ("2026-12-11", "Hawthorn Woods / Vernon Hills", 42.2280, -88.0150),
-    ("2026-12-15", "Gurnee", 42.3703, -87.9020),
+    ("MUNDELEIN", "Mundelein", 42.2280, -88.0150),
+    ("2026-12-08", "Elgin", 42.0354, -88.2826),
+    ("WAUKEGAN", "Vertical Church (Waukegan)", 42.3703, -87.9020),
     ("2026-12-16", "Hoffman Estates", 42.0630, -88.1227),
+    ("2026-12-21", "Palatine", 42.1103, -88.0342),
+    ("2026-12-22", "Schaumburg", 42.0334, -88.0834),
 ]
 
 MAX_PROXIMITY_MILES = 30.0
 
 # Map exact Chicagoland cities (lowercase) to an area key or ISO date
 _CITY_TO_2026_TARGET: dict[str, str] = {
-    # Buffalo Grove (2 nights: Tue Dec 1 & Sat Dec 12)
+    # Des Plaines / Mount Prospect / Chicago (Tue Dec 1)
+    "mount prospect": "2026-12-01",
+    "mt prospect": "2026-12-01",
+    "mt. prospect": "2026-12-01",
+    "des plaines": "2026-12-01",
+    "prospect heights": "2026-12-01",
+    "park ridge": "2026-12-01",
+    "niles": "2026-12-01",
+    "glenview": "2026-12-01",
+    "morton grove": "2026-12-01",
+    "skokie": "2026-12-01",
+    "evanston": "2026-12-01",
+    "northbrook": "2026-12-01",
+    "chicago": "2026-12-01",
+    # Buffalo Grove (3 nights: Wed Dec 2, Sat Dec 5, Wed Dec 9)
     "buffalo grove": "BG",
     "wheeling": "BG",
     "riverwoods": "BG",
-    # Mount Prospect (Wed Dec 2)
-    "mount prospect": "2026-12-02",
-    "mt prospect": "2026-12-02",
-    "mt. prospect": "2026-12-02",
-    "des plaines": "2026-12-02",
-    "prospect heights": "2026-12-02",
-    "park ridge": "2026-12-02",
-    "niles": "2026-12-02",
-    "glenview": "2026-12-02",
-    "morton grove": "2026-12-02",
-    "skokie": "2026-12-02",
-    "evanston": "2026-12-02",
-    "northbrook": "2026-12-02",
-    "chicago": "2026-12-02",
     # Arlington Heights (Fri Dec 4)
     "arlington heights": "2026-12-04",
     "elk grove village": "2026-12-04",
@@ -781,89 +786,89 @@ _CITY_TO_2026_TARGET: dict[str, str] = {
     "itasca": "2026-12-04",
     "wood dale": "2026-12-04",
     "bensenville": "2026-12-04",
-    # Elgin (Sat Dec 5)
-    "elgin": "2026-12-05",
-    "south elgin": "2026-12-05",
-    "bartlett": "2026-12-05",
-    "east dundee": "2026-12-05",
-    "west dundee": "2026-12-05",
-    "carpentersville": "2026-12-05",
-    "algonquin": "2026-12-05",
-    "lake in the hills": "2026-12-05",
-    "huntley": "2026-12-05",
-    "pingree grove": "2026-12-05",
-    "gilberts": "2026-12-05",
-    "hampshire": "2026-12-05",
-    "st. charles": "2026-12-05",
-    "st charles": "2026-12-05",
-    "saint charles": "2026-12-05",
-    "geneva": "2026-12-05",
-    "batavia": "2026-12-05",
-    # Schaumburg (Tue Dec 8)
-    "schaumburg": "2026-12-08",
-    "roselle": "2026-12-08",
-    "bloomingdale": "2026-12-08",
-    "medinah": "2026-12-08",
-    "hanover park": "2026-12-08",
-    "glendale heights": "2026-12-08",
-    "carol stream": "2026-12-08",
-    "addison": "2026-12-08",
-    "elmhurst": "2026-12-08",
-    "lombard": "2026-12-08",
-    "glen ellyn": "2026-12-08",
-    "wheaton": "2026-12-08",
-    "winfield": "2026-12-08",
-    "warrenville": "2026-12-08",
-    "naperville": "2026-12-08",
-    "aurora": "2026-12-08",
-    "north aurora": "2026-12-08",
-    "lisle": "2026-12-08",
-    "downers grove": "2026-12-08",
-    "bolingbrook": "2026-12-08",
-    # Palatine (Wed Dec 9)
-    "palatine": "2026-12-09",
-    "rolling meadows": "2026-12-09",
-    "inverness": "2026-12-09",
-    "barrington": "2026-12-09",
-    "south barrington": "2026-12-09",
-    "north barrington": "2026-12-09",
-    "lake barrington": "2026-12-09",
-    "deer park": "2026-12-09",
-    # Hawthorn Woods / Vernon Hills (Fri Dec 11)
-    "hawthorn woods": "2026-12-11",
-    "vernon hills": "2026-12-11",
-    "lake zurich": "2026-12-11",
-    "long grove": "2026-12-11",
-    "kildeer": "2026-12-11",
-    "mundelein": "2026-12-11",
-    "libertyville": "2026-12-11",
-    "lincolnshire": "2026-12-11",
-    "deerfield": "2026-12-11",
-    "highland park": "2026-12-11",
-    "lake forest": "2026-12-11",
-    "lake bluff": "2026-12-11",
-    "wauconda": "2026-12-11",
-    "island lake": "2026-12-11",
-    "cary": "2026-12-11",
-    "crystal lake": "2026-12-11",
-    # Gurnee (Tue Dec 15)
-    "gurnee": "2026-12-15",
-    "grayslake": "2026-12-15",
-    "hainesville": "2026-12-15",
-    "round lake": "2026-12-15",
-    "round lake beach": "2026-12-15",
-    "round lake park": "2026-12-15",
-    "round lake heights": "2026-12-15",
-    "waukegan": "2026-12-15",
-    "park city": "2026-12-15",
-    "north chicago": "2026-12-15",
-    "wadsworth": "2026-12-15",
-    "lindenhurst": "2026-12-15",
-    "lake villa": "2026-12-15",
-    "antioch": "2026-12-15",
-    "fox lake": "2026-12-15",
-    "zion": "2026-12-15",
-    "beach park": "2026-12-15",
+    # Elgin (Tue Dec 8)
+    "elgin": "2026-12-08",
+    "south elgin": "2026-12-08",
+    "bartlett": "2026-12-08",
+    "east dundee": "2026-12-08",
+    "west dundee": "2026-12-08",
+    "carpentersville": "2026-12-08",
+    "algonquin": "2026-12-08",
+    "lake in the hills": "2026-12-08",
+    "huntley": "2026-12-08",
+    "pingree grove": "2026-12-08",
+    "gilberts": "2026-12-08",
+    "hampshire": "2026-12-08",
+    "st. charles": "2026-12-08",
+    "st charles": "2026-12-08",
+    "saint charles": "2026-12-08",
+    "geneva": "2026-12-08",
+    "batavia": "2026-12-08",
+    # Schaumburg (Tue Dec 22)
+    "schaumburg": "2026-12-22",
+    "roselle": "2026-12-22",
+    "bloomingdale": "2026-12-22",
+    "medinah": "2026-12-22",
+    "hanover park": "2026-12-22",
+    "glendale heights": "2026-12-22",
+    "carol stream": "2026-12-22",
+    "addison": "2026-12-22",
+    "elmhurst": "2026-12-22",
+    "lombard": "2026-12-22",
+    "glen ellyn": "2026-12-22",
+    "wheaton": "2026-12-22",
+    "winfield": "2026-12-22",
+    "warrenville": "2026-12-22",
+    "naperville": "2026-12-22",
+    "aurora": "2026-12-22",
+    "north aurora": "2026-12-22",
+    "lisle": "2026-12-22",
+    "downers grove": "2026-12-22",
+    "bolingbrook": "2026-12-22",
+    # Palatine (Mon Dec 21)
+    "palatine": "2026-12-21",
+    "rolling meadows": "2026-12-21",
+    "inverness": "2026-12-21",
+    "barrington": "2026-12-21",
+    "south barrington": "2026-12-21",
+    "north barrington": "2026-12-21",
+    "lake barrington": "2026-12-21",
+    "deer park": "2026-12-21",
+    # Mundelein / Hawthorn Woods / Vernon Hills (3 nights: Sun Dec 6, Sat Dec 12, Tue Dec 15)
+    "hawthorn woods": "MUNDELEIN",
+    "vernon hills": "MUNDELEIN",
+    "lake zurich": "MUNDELEIN",
+    "long grove": "MUNDELEIN",
+    "kildeer": "MUNDELEIN",
+    "mundelein": "MUNDELEIN",
+    "libertyville": "MUNDELEIN",
+    "lincolnshire": "MUNDELEIN",
+    "deerfield": "MUNDELEIN",
+    "highland park": "MUNDELEIN",
+    "lake forest": "MUNDELEIN",
+    "lake bluff": "MUNDELEIN",
+    "wauconda": "MUNDELEIN",
+    "island lake": "MUNDELEIN",
+    "cary": "MUNDELEIN",
+    "crystal lake": "MUNDELEIN",
+    # Vertical Church (Waukegan / Gurnee) (2 nights: Fri Dec 11, Sun Dec 13)
+    "gurnee": "WAUKEGAN",
+    "grayslake": "WAUKEGAN",
+    "hainesville": "WAUKEGAN",
+    "round lake": "WAUKEGAN",
+    "round lake beach": "WAUKEGAN",
+    "round lake park": "WAUKEGAN",
+    "round lake heights": "WAUKEGAN",
+    "waukegan": "WAUKEGAN",
+    "park city": "WAUKEGAN",
+    "north chicago": "WAUKEGAN",
+    "wadsworth": "WAUKEGAN",
+    "lindenhurst": "WAUKEGAN",
+    "lake villa": "WAUKEGAN",
+    "antioch": "WAUKEGAN",
+    "fox lake": "WAUKEGAN",
+    "zion": "WAUKEGAN",
+    "beach park": "WAUKEGAN",
     # Hoffman Estates (Wed Dec 16)
     "hoffman estates": "2026-12-16",
     "streamwood": "2026-12-16",
@@ -872,68 +877,70 @@ _CITY_TO_2026_TARGET: dict[str, str] = {
 _ZIP_TO_2026_TARGET: dict[str, str] = {
     "60089": "BG",
     "60090": "BG",
-    "60056": "2026-12-02",
-    "60016": "2026-12-02",
-    "60018": "2026-12-02",
-    "60070": "2026-12-02",
-    "60068": "2026-12-02",
-    "60714": "2026-12-02",
-    "60025": "2026-12-02",
-    "60026": "2026-12-02",
-    "60076": "2026-12-02",
-    "60062": "2026-12-02",
-    "60656": "2026-12-02",
+    "60056": "2026-12-01",
+    "60016": "2026-12-01",
+    "60018": "2026-12-01",
+    "60070": "2026-12-01",
+    "60068": "2026-12-01",
+    "60714": "2026-12-01",
+    "60025": "2026-12-01",
+    "60026": "2026-12-01",
+    "60076": "2026-12-01",
+    "60062": "2026-12-01",
+    "60656": "2026-12-01",
     "60004": "2026-12-04",
     "60005": "2026-12-04",
-    "60008": "2026-12-09",
+    "60008": "2026-12-21",
     "60007": "2026-12-04",
     "60143": "2026-12-04",
     "60191": "2026-12-04",
-    "60120": "2026-12-05",
-    "60123": "2026-12-05",
-    "60124": "2026-12-05",
-    "60177": "2026-12-05",
-    "60103": "2026-12-05",
-    "60118": "2026-12-05",
-    "60110": "2026-12-05",
-    "60102": "2026-12-05",
-    "60156": "2026-12-05",
-    "60142": "2026-12-05",
-    "60174": "2026-12-05",
-    "60134": "2026-12-05",
-    "60173": "2026-12-08",
-    "60193": "2026-12-08",
-    "60194": "2026-12-08",
-    "60195": "2026-12-08",
-    "60172": "2026-12-08",
-    "60108": "2026-12-08",
-    "60133": "2026-12-08",
-    "60139": "2026-12-08",
-    "60188": "2026-12-08",
-    "60101": "2026-12-08",
-    "60148": "2026-12-08",
-    "60540": "2026-12-08",
-    "60504": "2026-12-08",
-    "60505": "2026-12-08",
-    "60067": "2026-12-09",
-    "60074": "2026-12-09",
-    "60010": "2026-12-09",
-    "60047": "2026-12-11",
-    "60061": "2026-12-11",
-    "60060": "2026-12-11",
-    "60048": "2026-12-11",
-    "60069": "2026-12-11",
-    "60015": "2026-12-11",
-    "60084": "2026-12-11",
-    "60031": "2026-12-15",
-    "60030": "2026-12-15",
-    "60073": "2026-12-15",
-    "60085": "2026-12-15",
-    "60087": "2026-12-15",
-    "60046": "2026-12-15",
-    "60002": "2026-12-15",
-    "60020": "2026-12-15",
-    "60099": "2026-12-15",
+    "60120": "2026-12-08",
+    "60123": "2026-12-08",
+    "60124": "2026-12-08",
+    "60177": "2026-12-08",
+    "60103": "2026-12-08",
+    "60118": "2026-12-08",
+    "60110": "2026-12-08",
+    "60102": "2026-12-08",
+    "60156": "2026-12-08",
+    "60142": "2026-12-08",
+    "60140": "2026-12-08",
+    "60174": "2026-12-08",
+    "60134": "2026-12-08",
+    "60173": "2026-12-22",
+    "60193": "2026-12-22",
+    "60194": "2026-12-22",
+    "60195": "2026-12-22",
+    "60172": "2026-12-22",
+    "60108": "2026-12-22",
+    "60133": "2026-12-22",
+    "60139": "2026-12-22",
+    "60188": "2026-12-22",
+    "60101": "2026-12-22",
+    "60148": "2026-12-22",
+    "60540": "2026-12-22",
+    "60504": "2026-12-22",
+    "60505": "2026-12-22",
+    "60067": "2026-12-21",
+    "60074": "2026-12-21",
+    "60010": "2026-12-21",
+    "60047": "MUNDELEIN",
+    "60061": "MUNDELEIN",
+    "60060": "MUNDELEIN",
+    "60048": "MUNDELEIN",
+    "60069": "MUNDELEIN",
+    "60015": "MUNDELEIN",
+    "60084": "MUNDELEIN",
+    "60013": "MUNDELEIN",
+    "60031": "WAUKEGAN",
+    "60030": "WAUKEGAN",
+    "60073": "WAUKEGAN",
+    "60085": "WAUKEGAN",
+    "60087": "WAUKEGAN",
+    "60046": "WAUKEGAN",
+    "60002": "WAUKEGAN",
+    "60020": "WAUKEGAN",
+    "60099": "WAUKEGAN",
     "60169": "2026-12-16",
     "60192": "2026-12-16",
     "60107": "2026-12-16",
@@ -1017,14 +1024,37 @@ def _geocode_us_address(
 
 
 def _resolve_buffalo_grove_date() -> str:
-    """Place first 8 Buffalo Grove homes on Tue Dec 1, then Sat Dec 12."""
+    """Place Buffalo Grove homes across Wed Dec 2 (8), Sat Dec 5 (12), and Wed Dec 9 (8)."""
     try:
-        dec1_stops = data_source.get_stops(date="2026-12-01")
-        if len(dec1_stops) < 8:
-            return "2026-12-01"
-        return "2026-12-12"
+        if len(data_source.get_stops(date="2026-12-02")) < 8:
+            return "2026-12-02"
+        if len(data_source.get_stops(date="2026-12-05")) < 12:
+            return "2026-12-05"
+        return "2026-12-09"
     except Exception:
-        return "2026-12-01"
+        return "2026-12-02"
+
+
+def _resolve_mundelein_date() -> str:
+    """Place Mundelein / Hawthorn Woods / Vernon Hills homes across Sun Dec 6 (10), Sat Dec 12 (10), and Tue Dec 15 (8)."""
+    try:
+        if len(data_source.get_stops(date="2026-12-06")) < 10:
+            return "2026-12-06"
+        if len(data_source.get_stops(date="2026-12-12")) < 10:
+            return "2026-12-12"
+        return "2026-12-15"
+    except Exception:
+        return "2026-12-06"
+
+
+def _resolve_waukegan_date() -> str:
+    """Place Vertical Church (Waukegan / Gurnee) homes across Fri Dec 11 and Sun Dec 13."""
+    try:
+        if len(data_source.get_stops(date="2026-12-11")) < 5:
+            return "2026-12-11"
+        return "2026-12-13"
+    except Exception:
+        return "2026-12-11"
 
 
 def _auto_assign_carols_date_with_coords(
@@ -1070,6 +1100,10 @@ def _auto_assign_carols_date_with_coords(
 
     if target == "BG":
         target = _resolve_buffalo_grove_date()
+    elif target == "MUNDELEIN":
+        target = _resolve_mundelein_date()
+    elif target == "WAUKEGAN":
+        target = _resolve_waukegan_date()
 
     if target:
         d = datetime.strptime(target, "%Y-%m-%d").date()
