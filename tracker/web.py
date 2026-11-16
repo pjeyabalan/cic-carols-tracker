@@ -1272,8 +1272,11 @@ def schedule() -> str:  # pragma: no cover - UI entrypoint
         "2025-12-17": "Siva, Sree",
         "2025-12-18": "Pandi, DPS",
     }
+    guitar_roster = ["Jhonie", "Manoj"]
+    percussion_roster = ["Jackson", "Merlin"]
+    santa_roster = ["Siva", "Praveen", "Pandi", "Benny"]
     schedule_blocks = []
-    for planned_date in dates:
+    for idx, planned_date in enumerate(dates):
         day_name = planned_date.strftime("%A")
         iso_date = planned_date.strftime("%Y-%m-%d")
         try:
@@ -1281,6 +1284,9 @@ def schedule() -> str:  # pragma: no cover - UI entrypoint
         except TypeError:
             stops = data_source.get_stops(day=day_name)
         annotated = _annotate_stops(stops, reference_time)
+        guitar_name = guitar_roster[idx % len(guitar_roster)]
+        percussion_name = percussion_roster[idx % len(percussion_roster)]
+        santa_name = santa_map.get(iso_date) or santa_roster[idx % len(santa_roster)]
         schedule_blocks.append(
             {
                 "id": iso_date,
@@ -1289,7 +1295,9 @@ def schedule() -> str:  # pragma: no cover - UI entrypoint
                 "day": day_name,
                 "date": iso_date,
                 "city": city_labels.get(iso_date),
-                "santa": santa_map.get(iso_date),
+                "guitar": guitar_name,
+                "percussion": percussion_name,
+                "santa": santa_name,
                 "count": len(annotated),
                 "stops": annotated,
             }
@@ -1310,6 +1318,8 @@ def schedule() -> str:  # pragma: no cover - UI entrypoint
                 "day": "TBD",
                 "date": "unassigned",
                 "city": "Outside 30 mi / Custom",
+                "guitar": None,
+                "percussion": None,
                 "santa": None,
                 "count": len(annotated_unscheduled),
                 "stops": annotated_unscheduled,

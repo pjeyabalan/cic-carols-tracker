@@ -166,6 +166,17 @@ def test_schedule_displays_2026_areas_and_house_counts(monkeypatch) -> None:
     assert b"2026-12-01" in resp.data
     assert b"2026-12-23" in resp.data
     assert b"2026-12-17" not in resp.data
+    for crew_member in [
+        b"Jhonie",
+        b"Manoj",
+        b"Jackson",
+        b"Merlin",
+        b"Siva",
+        b"Praveen",
+        b"Pandi",
+        b"Benny",
+    ]:
+        assert crew_member in resp.data
 
 
 def test_registrations_list_and_full_backup_export(monkeypatch) -> None:

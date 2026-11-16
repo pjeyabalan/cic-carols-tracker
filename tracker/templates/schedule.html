@@ -38,8 +38,8 @@
       }
       .date-strip {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
-        gap: 0.65rem;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 0.7rem;
         margin-bottom: 1rem;
       }
       .search-bar {
@@ -130,11 +130,53 @@
         box-shadow: 0 30px 80px rgba(8, 18, 16, 0.35);
         min-height: 360px;
       }
-  /* Outer rotating Santa name orbit for date pills */
-  .date-pill-wrap { position: relative; padding: 14px; }
-  .santa-orbit { position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); width: 100%; height: 100%; pointer-events:none; z-index: 3; }
-  .santa-orbit svg { width:100%; height:100%; overflow: visible; }
-  .santa-orbit text { font-family: 'Mountains of Christmas', 'Playfair Display', 'Quicksand', system-ui, -apple-system, sans-serif; font-weight: 800; fill: #ff0000; /* brighter festive red */ letter-spacing: 1.6px; stroke: #ffffff; stroke-width: 2.2; paint-order: stroke fill; }
+      .date-pill-wrap { position: relative; display: flex; }
+      .tile-crew {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 0.28rem;
+        margin-top: 0.35rem;
+        padding-top: 0.38rem;
+        border-top: 1px dashed rgba(15, 23, 42, 0.14);
+        width: 100%;
+      }
+      .crew-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.22rem;
+        font-size: 0.74rem;
+        font-weight: 700;
+        padding: 0.14rem 0.48rem;
+        border-radius: 999px;
+        line-height: 1.2;
+        white-space: nowrap;
+      }
+      .crew-icon {
+        font-size: 0.84rem;
+        line-height: 1;
+      }
+      .crew-guitar {
+        background: #fffbeb;
+        border: 1px solid #fde68a;
+        color: #92400e;
+      }
+      .crew-percussion {
+        background: #eff6ff;
+        border: 1px solid #bfdbfe;
+        color: #1e40af;
+      }
+      .crew-santa {
+        background: #fef2f2;
+        border: 1px solid #fecaca;
+        color: #b91c1c;
+      }
+      .panel-crew {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 0.35rem;
+      }
       .date-panel {
         display: none;
       }
@@ -445,35 +487,29 @@
               <span class="area-name">{{ block.city }}</span>
               {% endif %}
               <small class="house-count">{{ block.count }} {{ 'house' if block.count == 1 else 'houses' }}</small>
+              {% if block.guitar or block.percussion or block.santa %}
+              <div class="tile-crew" aria-label="Team assignments for {{ block.display }}">
+                {% if block.guitar %}
+                <span class="crew-chip crew-guitar" title="Guitar: {{ block.guitar }}">
+                  <span class="crew-icon" aria-hidden="true">🎸</span>
+                  <span class="crew-name">{{ block.guitar }}</span>
+                </span>
+                {% endif %}
+                {% if block.percussion %}
+                <span class="crew-chip crew-percussion" title="Percussion (Drums): {{ block.percussion }}">
+                  <span class="crew-icon" aria-hidden="true">🥁</span>
+                  <span class="crew-name">{{ block.percussion }}</span>
+                </span>
+                {% endif %}
+                {% if block.santa %}
+                <span class="crew-chip crew-santa" title="Santa: {{ block.santa }}">
+                  <span class="crew-icon" aria-hidden="true">🎅</span>
+                  <span class="crew-name">{{ block.santa }}</span>
+                </span>
+                {% endif %}
+              </div>
+              {% endif %}
             </button>
-            {% if block.santa %}
-            <div class="santa-orbit" role="img" aria-label="Santa: {{ block.santa }}">
-              <svg viewBox="0 0 200 100" preserveAspectRatio="none" aria-hidden="true">
-                <defs>
-                  <!-- Proper rounded rectangle (capsule) perimeter path around the pill -->
-                  <path id="orbitPath-{{ block.id }}" d="M 25 0
-                    H 175
-                    A 25 25 0 0 1 200 25
-                    V 75
-                    A 25 25 0 0 1 175 100
-                    H 25
-                    A 25 25 0 0 1 0 75
-                    V 25
-                    A 25 25 0 0 1 25 0
-                    Z" />
-                  <!-- Golden glow filter for festive emphasis -->
-                  <filter id="santaGlow-{{ block.id }}" x="-50%" y="-50%" width="200%" height="200%">
-                    <feDropShadow dx="0" dy="0" stdDeviation="2.0" flood-color="#facc15" flood-opacity="1.0" />
-                  </filter>
-                </defs>
-                <text font-size="14" filter="url(#santaGlow-{{ block.id }})">
-                  <textPath href="#orbitPath-{{ block.id }}" xlink:href="#orbitPath-{{ block.id }}" startOffset="0%">🎅 {{ block.santa }}
-                    <animate attributeName="startOffset" values="0%;100%" dur="12s" repeatCount="indefinite" />
-                  </textPath>
-                </text>
-              </svg>
-            </div>
-            {% endif %}
           </div>
         {% endfor %}
       </div>
@@ -488,6 +524,28 @@
               {% endif %}
             </h2>
             <div class="panel-right">
+              {% if block.guitar or block.percussion or block.santa %}
+              <div class="panel-crew">
+                {% if block.guitar %}
+                <span class="crew-chip crew-guitar" title="Guitar: {{ block.guitar }}">
+                  <span class="crew-icon" aria-hidden="true">🎸</span>
+                  <span>{{ block.guitar }}</span>
+                </span>
+                {% endif %}
+                {% if block.percussion %}
+                <span class="crew-chip crew-percussion" title="Percussion (Drums): {{ block.percussion }}">
+                  <span class="crew-icon" aria-hidden="true">🥁</span>
+                  <span>{{ block.percussion }}</span>
+                </span>
+                {% endif %}
+                {% if block.santa %}
+                <span class="crew-chip crew-santa" title="Santa: {{ block.santa }}">
+                  <span class="crew-icon" aria-hidden="true">🎅</span>
+                  <span>{{ block.santa }}</span>
+                </span>
+                {% endif %}
+              </div>
+              {% endif %}
               <span class="pill">{{ block.count }} {{ 'house' if block.count == 1 else 'houses' }}</span>
             </div>
           </div>
@@ -723,7 +781,10 @@
                   card.classList.add('hidden');
                 }
               });
-              feedback.textContent = `Showing ${match.label} scheduled on ${targetButton?.textContent?.trim() || ''}.`;
+              const pillDate = targetButton?.querySelector('.pill-date')?.textContent?.trim() || '';
+              const pillArea = targetButton?.querySelector('.area-name')?.textContent?.trim() || '';
+              const pillLabel = [pillDate, pillArea].filter(Boolean).join(' · ') || targetButton?.textContent?.trim() || '';
+              feedback.textContent = `Showing ${match.label} scheduled on ${pillLabel}.`;
             } else {
               feedback.textContent = 'No family found with that first name.';
             }
