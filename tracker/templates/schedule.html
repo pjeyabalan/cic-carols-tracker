@@ -239,13 +239,19 @@
         background: #fff;
       }
       .pin-role-bar {
-        display: flex;
+        display: none;
         align-items: center;
         gap: 0.4rem;
         flex-wrap: wrap;
         margin-top: 0.2rem;
       }
+      .house-card.is-start-house .pin-role-bar,
+      .house-card.is-end-house .pin-role-bar {
+        display: flex;
+      }
       .pin-role-btn {
+        display: none;
+        align-items: center;
         border: 1px solid rgba(15, 23, 42, 0.2);
         border-radius: 999px;
         padding: 0.22rem 0.6rem;
@@ -260,11 +266,13 @@
         background: #e2e8f0;
       }
       .pin-role-btn.active-start {
+        display: inline-flex;
         background: #16a34a;
         border-color: #15803d;
         color: #fff;
       }
       .pin-role-btn.active-end {
+        display: inline-flex;
         background: #d97706;
         border-color: #b45309;
         color: #fff;
@@ -917,15 +925,21 @@
             const isEnd = lastVal && cid === lastVal;
             card.classList.toggle('is-start-house', !!isStart);
             card.classList.toggle('is-end-house', !!isEnd);
+            const roleBar = card.querySelector('.pin-role-bar');
             const startBtn = card.querySelector('.pin-role-btn[data-role="set-start"]');
             const endBtn = card.querySelector('.pin-role-btn[data-role="set-end"]');
+            if (roleBar) {
+              roleBar.style.display = (isStart || isEnd) ? 'flex' : 'none';
+            }
             if (startBtn) {
               startBtn.classList.toggle('active-start', !!isStart);
-              startBtn.textContent = isStart ? '🚩 Start House ✓' : '🚩 Start House';
+              startBtn.style.display = isStart ? 'inline-flex' : 'none';
+              startBtn.textContent = '🚩 Start House';
             }
             if (endBtn) {
               endBtn.classList.toggle('active-end', !!isEnd);
-              endBtn.textContent = isEnd ? '🏁 End House ✓' : '🏁 End House';
+              endBtn.style.display = isEnd ? 'inline-flex' : 'none';
+              endBtn.textContent = '🏁 End House';
             }
           });
         };
